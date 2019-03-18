@@ -1,0 +1,545 @@
+node01 node02
+
+scp 192.168.10.232:/opt/k8s/bin/kubelet     /opt/k8s/bin/
+
+
+master01
+
+cd /opt/k8s
+cp kubernetes/server/bin/kubeadm  /opt/k8s/bin/
+
+export node_name="node01"
+# 创建 token
+export BOOTSTRAP_TOKEN=$(kubeadm token create \
+      --description kubelet-bootstrap-token \
+      --groups system:bootstrappers:${node_name} \
+      --kubeconfig ~/.kube/config)
+
+# 设置集群参数
+    kubectl config set-cluster kubernetes \
+      --certificate-authority=/etc/kubernetes/cert/ca.pem \
+      --embed-certs=true \
+      --server=${KUBE_APISERVER} \
+      --kubeconfig=kubelet-bootstrap-${node_name}.kubeconfig
+
+# 设置客户端认证参数
+    kubectl config set-credentials kubelet-bootstrap \
+      --token=${BOOTSTRAP_TOKEN} \
+      --kubeconfig=kubelet-bootstrap-${node_name}.kubeconfig
+
+# 设置上下文参数
+    kubectl config set-context default \
+      --cluster=kubernetes \
+      --user=kubelet-bootstrap \
+      --kubeconfig=kubelet-bootstrap-${node_name}.kubeconfig
+
+kubectl config use-context default --kubeconfig=kubelet-bootstrap-${node_name}.kubeconfig
+
+证书中写入 Token 而非证书，证书后续由 controller-manager 创建。查看 kubeadm 为各节点创建的 token：
+
+kubeadm token list --kubeconfig ~/.kube/config
+
+scp kubelet-bootstrap-${node_name}.kubeconfig k8s@${node_name}:/etc/kubernetes/kubelet-bootstrap.kubeconfig
+
+
+
+
+
+
+
+export node_name="node02"
+# 创建 token
+export BOOTSTRAP_TOKEN=$(kubeadm token create \
+      --description kubelet-bootstrap-token \
+      --groups system:bootstrappers:${node_name} \
+      --kubeconfig ~/.kube/config)
+
+
+I0319 01:31:28.436490   16557 version.go:89] could not fetch a Kubernetes version from the internet: unable to get URL "https://dl.k8s.io/release/stable-1.txt": Get https://dl.k8s.io/release/stable-1.txt: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+I0319 01:31:28.436951   16557 version.go:94] falling back to the local client version: v1.12.0-rc.2
+
+
+
+
+# 设置集群参数
+    kubectl config set-cluster kubernetes \
+      --certificate-authority=/etc/kubernetes/cert/ca.pem \
+      --embed-certs=true \
+      --server=${KUBE_APISERVER} \
+      --kubeconfig=kubelet-bootstrap-${node_name}.kubeconfig
+
+# 设置客户端认证参数
+    kubectl config set-credentials kubelet-bootstrap \
+      --token=${BOOTSTRAP_TOKEN} \
+      --kubeconfig=kubelet-bootstrap-${node_name}.kubeconfig
+
+# 设置上下文参数
+    kubectl config set-context default \
+      --cluster=kubernetes \
+      --user=kubelet-bootstrap \
+      --kubeconfig=kubelet-bootstrap-${node_name}.kubeconfig
+
+kubectl config use-context default --kubeconfig=kubelet-bootstrap-${node_name}.kubeconfig
+
+证书中写入 Token 而非证书，证书后续由 controller-manager 创建。查看 kubeadm 为各节点创建的 token：
+
+kubeadm token list --kubeconfig ~/.kube/config
+
+scp kubelet-bootstrap-${node_name}.kubeconfig k8s@${node_name}:/etc/kubernetes/kubelet-bootstrap.kubeconfig
+
+
+kubectl create clusterrolebinding kubelet-bootstrap --clusterrole=system:node-bootstrapper --group=system:bootstrappers
+
+
+
+
+
+创建和分发 kubelet config json 文件
+node01   
+
+export CLUSTER_DNS_DOMAIN="cluster.local."
+export CLUSTER_DNS_SVC_IP="10.254.0.2"
+
+cat > kubelet.config.json.template <<EOF
+{
+  "kind": "KubeletConfiguration",
+  "apiVersion": "kubelet.config.k8s.io/v1beta1",
+  "authentication": {
+    "x509": {
+      "clientCAFile": "/etc/kubernetes/cert/ca.pem"
+    },
+    "webhook": {
+      "enabled": true,
+      "cacheTTL": "2m0s"
+    },
+    "anonymous": {
+      "enabled": false
+    }
+  },
+  "authorization": {
+    "mode": "Webhook",
+    "webhook": {
+      "cacheAuthorizedTTL": "5m0s",
+      "cacheUnauthorizedTTL": "30s"
+    }
+  },
+  "address": "192.168.10.242",
+  "port": 10250,
+  "readOnlyPort": 0,
+  "cgroupDriver": "cgroupfs",
+  "hairpinMode": "promiscuous-bridge",
+  "serializeImagePulls": false,
+  "featureGates": {
+    "RotateKubeletClientCertificate": true,
+    "RotateKubeletServerCertificate": true
+  },
+  "clusterDomain": "${CLUSTER_DNS_DOMAIN}",
+  "clusterDNS": ["${CLUSTER_DNS_SVC_IP}"]
+}
+EOF
+
+cp kubelet.config.json.template /etc/kubernetes/kubelet.config.json
+
+
+
+
+cat > kubelet.service.template <<EOF
+[Unit]
+Description=Kubernetes Kubelet
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+After=docker.service
+Requires=docker.service
+
+[Service]
+WorkingDirectory=/var/lib/kubelet
+ExecStart=/opt/k8s/bin/kubelet \\
+  --cert-dir=/etc/kubernetes/cert \\
+  --bootstrap-kubeconfig=/etc/kubernetes/kubelet-bootstrap.kubeconfig \\
+  --kubeconfig=/etc/kubernetes/kubelet.kubeconfig \\
+  --config=/etc/kubernetes/kubelet.config.json \\
+  --hostname-override=192.168.10.242 \\
+  --pod-infra-container-image=registry.access.redhat.com/rhel7/pod-infrastructure:latest \\
+  --allow-privileged=true \\
+  --alsologtostderr=true \\
+  --logtostderr=false \\
+  --log-dir=/var/log/kubernetes \\
+  --v=2
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+cp kubelet.service.template /etc/systemd/system/kubelet.service
+
+
+
+mkdir -p /var/lib/kubelet
+systemctl daemon-reload && systemctl enable kubelet  && systemctl restart  kubelet
+systemctl status  kubelet
+
+
+
+
+
+
+node02
+
+export CLUSTER_DNS_DOMAIN="cluster.local."
+export CLUSTER_DNS_SVC_IP="10.254.0.2"
+
+cat > kubelet.config.json.template <<EOF
+{
+  "kind": "KubeletConfiguration",
+  "apiVersion": "kubelet.config.k8s.io/v1beta1",
+  "authentication": {
+    "x509": {
+      "clientCAFile": "/etc/kubernetes/cert/ca.pem"
+    },
+    "webhook": {
+      "enabled": true,
+      "cacheTTL": "2m0s"
+    },
+    "anonymous": {
+      "enabled": false
+    }
+  },
+  "authorization": {
+    "mode": "Webhook",
+    "webhook": {
+      "cacheAuthorizedTTL": "5m0s",
+      "cacheUnauthorizedTTL": "30s"
+    }
+  },
+  "address": "192.168.10.243",
+  "port": 10250,
+  "readOnlyPort": 0,
+  "cgroupDriver": "cgroupfs",
+  "hairpinMode": "promiscuous-bridge",
+  "serializeImagePulls": false,
+  "featureGates": {
+    "RotateKubeletClientCertificate": true,
+    "RotateKubeletServerCertificate": true
+  },
+  "clusterDomain": "${CLUSTER_DNS_DOMAIN}",
+  "clusterDNS": ["${CLUSTER_DNS_SVC_IP}"]
+}
+EOF
+
+cp kubelet.config.json.template /etc/kubernetes/kubelet.config.json
+
+
+
+
+cat > kubelet.service.template <<EOF
+[Unit]
+Description=Kubernetes Kubelet
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+After=docker.service
+Requires=docker.service
+
+[Service]
+WorkingDirectory=/var/lib/kubelet
+ExecStart=/opt/k8s/bin/kubelet \\
+  --cert-dir=/etc/kubernetes/cert \\
+  --bootstrap-kubeconfig=/etc/kubernetes/kubelet-bootstrap.kubeconfig \\
+  --kubeconfig=/etc/kubernetes/kubelet.kubeconfig \\
+  --config=/etc/kubernetes/kubelet.config.json \\
+  --hostname-override=192.168.10.243 \\
+  --pod-infra-container-image=registry.access.redhat.com/rhel7/pod-infrastructure:latest \\
+  --allow-privileged=true \\
+  --alsologtostderr=true \\
+  --logtostderr=false \\
+  --log-dir=/var/log/kubernetes \\
+  --v=2
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+cp kubelet.service.template /etc/systemd/system/kubelet.service
+
+
+
+mkdir -p /var/lib/kubelet
+systemctl daemon-reload && systemctl enable kubelet  && systemctl restart  kubelet
+systemctl status  kubelet
+
+
+
+
+
+master01
+
+kubectl get csr
+NAME                                                   AGE    REQUESTOR                 CONDITION
+node-csr-L1XJ_mUACv4ns4fjtjY63gfl5j263F2FPW3AAXIibMs   4m2s   system:bootstrap:loqn67   Pending
+node-csr-Z2Aq4-6qxSTCs7xCk-cTdxOyzCg4ETcRXB-eRL7vLo0   35s    system:bootstrap:9qccpj   Pending
+
+
+kubectl  certificate  approve   node-csr-L1XJ_mUACv4ns4fjtjY63gfl5j263F2FPW3AAXIibMs
+
+
+
+kubectl get csr
+NAME                                                   AGE     REQUESTOR                 CONDITION
+node-csr-L1XJ_mUACv4ns4fjtjY63gfl5j263F2FPW3AAXIibMs   5m38s   system:bootstrap:loqn67   Approved,Issued
+node-csr-Z2Aq4-6qxSTCs7xCk-cTdxOyzCg4ETcRXB-eRL7vLo0   2m11s   system:bootstrap:9qccpj   Pending
+
+
+
+
+kubectl  describe     csr       node-csr-L1XJ_mUACv4ns4fjtjY63gfl5j263F2FPW3AAXIibMs
+
+
+
+
+
+
+
+
+kubectl  certificate  approve   node-csr-Z2Aq4-6qxSTCs7xCk-cTdxOyzCg4ETcRXB-eRL7vLo0
+
+
+
+kubectl get csr
+NAME                                                   AGE     REQUESTOR                 CONDITION
+node-csr-L1XJ_mUACv4ns4fjtjY63gfl5j263F2FPW3AAXIibMs   6m58s   system:bootstrap:loqn67   Approved,Issued
+node-csr-Z2Aq4-6qxSTCs7xCk-cTdxOyzCg4ETcRXB-eRL7vLo0   3m31s   system:bootstrap:9qccpj   Approved,Issued
+
+
+
+kubectl  describe     csr      node-csr-Z2Aq4-6qxSTCs7xCk-cTdxOyzCg4ETcRXB-eRL7vLo0 
+
+
+
+
+
+
+
+自动 approve CSR 请求
+
+master01
+
+创建三个 ClusterRoleBinding，分别用于自动 approve client、renew client、renew server 证书：
+
+cat > csr-crb.yaml <<EOF
+ # Approve all CSRs for the group "system:bootstrappers"
+ kind: ClusterRoleBinding
+ apiVersion: rbac.authorization.k8s.io/v1
+ metadata:
+   name: auto-approve-csrs-for-group
+ subjects:
+ - kind: Group
+   name: system:bootstrappers
+   apiGroup: rbac.authorization.k8s.io
+ roleRef:
+   kind: ClusterRole
+   name: system:certificates.k8s.io:certificatesigningrequests:nodeclient
+   apiGroup: rbac.authorization.k8s.io
+ # To let a node of the group "system:nodes" renew its own credentials
+ kind: ClusterRoleBinding
+ apiVersion: rbac.authorization.k8s.io/v1
+ metadata:
+   name: node-client-cert-renewal
+ subjects:
+ - kind: Group
+   name: system:nodes
+   apiGroup: rbac.authorization.k8s.io
+metadata:
+- apiGroups: ["certificates.k8s.io"]
+ # To let a node of the group "system:nodes" renew its own server credentials
+ subjects:
+ - kind: Group
+   name: system:nodes
+   apiGroup: rbac.authorization.k8s.io
+ roleRef:
+   kind: ClusterRole
+   name: approve-node-server-renewal-csr
+   apiGroup: rbac.authorization.k8s.io
+EOF
+
+
+
+cat > csr-crb.yaml <<EOF
+ # Approve all CSRs for the group "system:bootstrappers"
+ kind: ClusterRoleBinding
+ apiVersion: rbac.authorization.k8s.io/v1
+ metadata:
+   name: auto-approve-csrs-for-group
+ subjects:
+ - kind: Group
+   name: system:bootstrappers
+   apiGroup: rbac.authorization.k8s.io
+ roleRef:
+   kind: ClusterRole
+   name: system:certificates.k8s.io:certificatesigningrequests:nodeclient
+   apiGroup: rbac.authorization.k8s.io
+---
+ # To let a node of the group "system:nodes" renew its own credentials
+ kind: ClusterRoleBinding
+ apiVersion: rbac.authorization.k8s.io/v1
+ metadata:
+   name: node-client-cert-renewal
+ subjects:
+ - kind: Group
+   name: system:nodes
+   apiGroup: rbac.authorization.k8s.io
+ roleRef:
+   kind: ClusterRole
+   name: system:certificates.k8s.io:certificatesigningrequests:selfnodeclient
+   apiGroup: rbac.authorization.k8s.io
+---
+# A ClusterRole which instructs the CSR approver to approve a node requesting a
+# serving cert matching its client cert.
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: approve-node-server-renewal-csr
+rules:
+- apiGroups: ["certificates.k8s.io"]
+  resources: ["certificatesigningrequests/selfnodeserver"]
+  verbs: ["create"]
+---
+ # To let a node of the group "system:nodes" renew its own server credentials
+ kind: ClusterRoleBinding
+ apiVersion: rbac.authorization.k8s.io/v1
+ metadata:
+   name: node-server-cert-renewal
+ subjects:
+ - kind: Group
+   name: system:nodes
+   apiGroup: rbac.authorization.k8s.io
+ roleRef:
+   kind: ClusterRole
+   name: approve-node-server-renewal-csr
+   apiGroup: rbac.authorization.k8s.io
+EOF
+
+
+
+
+
+
+
+
+
+kubectl apply -f csr-crb.yaml
+
+cat  csr-crb.yaml 
+ # Approve all CSRs for the group "system:bootstrappers"
+ kind: ClusterRoleBinding
+ apiVersion: rbac.authorization.k8s.io/v1
+ metadata:
+   name: auto-approve-csrs-for-group
+ subjects:
+ - kind: Group
+   name: system:bootstrappers
+   apiGroup: rbac.authorization.k8s.io
+ roleRef:
+   kind: ClusterRole
+   name: system:certificates.k8s.io:certificatesigningrequests:nodeclient
+   apiGroup: rbac.authorization.k8s.io
+---
+ # To let a node of the group "system:nodes" renew its own credentials
+ kind: ClusterRoleBinding
+ apiVersion: rbac.authorization.k8s.io/v1
+ metadata:
+   name: node-client-cert-renewal
+ subjects:
+ - kind: Group
+   name: system:nodes
+   apiGroup: rbac.authorization.k8s.io
+ roleRef:
+   kind: ClusterRole
+   name: system:certificates.k8s.io:certificatesigningrequests:selfnodeclient
+   apiGroup: rbac.authorization.k8s.io
+---
+# A ClusterRole which instructs the CSR approver to approve a node requesting a
+# serving cert matching its client cert.
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: approve-node-server-renewal-csr
+rules:
+- apiGroups: ["certificates.k8s.io"]
+  resources: ["certificatesigningrequests/selfnodeserver"]
+  verbs: ["create"]
+---
+ # To let a node of the group "system:nodes" renew its own server credentials
+ kind: ClusterRoleBinding
+ apiVersion: rbac.authorization.k8s.io/v1
+ metadata:
+   name: node-server-cert-renewal
+ subjects:
+ - kind: Group
+   name: system:nodes
+   apiGroup: rbac.authorization.k8s.io
+ roleRef:
+   kind: ClusterRole
+   name: approve-node-server-renewal-csr
+   apiGroup: rbac.authorization.k8s.io
+
+
+
+
+
+
+
+
+
+
+
+
+node01
+netstat -lnpt|grep kubelet
+tcp        0      0 127.0.0.1:10248         0.0.0.0:*               LISTEN      18086/kubelet       
+tcp        0      0 192.168.10.242:10250    0.0.0.0:*               LISTEN      18086/kubelet       
+tcp        0      0 127.0.0.1:37254         0.0.0.0:*               LISTEN      18086/kubelet     
+
+
+
+[root@node01 /]# docker pull httpd
+Using default tag: latest
+Error response from daemon: Get https://registry-1.docker.io/v2/: net/http: TLS handshake timeout
+
+
+
+node01   node02
+
+cat > /etc/docker/daemon.json << EOF
+{
+"graph":"/var/lib/docker",
+"registry-mirrors": ["https://2xdz2l32.mirror.aliyuncs.com"],
+"live-restore": true
+}
+EOF
+
+
+
+systemctl daemon-reload
+systemctl restart docker
+
+docker pull httpd
+
+master01
+
+kubectl  run httpd --image=httpd --replicas=1
+kubectl  run httpod --image=httpd --restart=Never --image-pull-policy=IfNotPresent
+kubectl  get pod
+
+
+
+
+registry.access.redhat.com/rhel7/pod-infrastructure:latest
+
+kubectl  get pod
+NAME                    READY   STATUS    RESTARTS   AGE
+httpd-7db5849b8-cpw5m   1/1     Running   0          6m
+httpod                  1/1     Running   0          5m36s
+
+
+
+
+

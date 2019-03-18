@@ -1,0 +1,187 @@
+kvm 
+
+cat net-192-168-10-1.xml 
+<network>
+  <name>net-192-168-10-1</name>
+  <uuid>75dbebde-fc15-4350-8a06-f1432f9e6d30</uuid>
+  <forward mode='nat'>
+    <nat>
+      <port start='1024' end='65535'/>
+    </nat>
+  </forward>
+  <bridge name='virbr0' stp='on' delay='0' />
+  <mac address='52:54:00:bc:f2:65'/>
+  <ip address='192.168.10.1' netmask='255.255.255.0'>
+  </ip>
+</network>
+
+
+cp CentOS7.6.1810.x86_64-bak.qcow2     192.168.10.232.qcow2
+cp CentOS7.6.1810.x86_64-bak.qcow2     192.168.10.242.qcow2
+cp CentOS7.6.1810.x86_64-bak.qcow2     192.168.10.243.qcow2
+
+
+qemu-img resize    192.168.10.232.qcow2   +80G
+qemu-img resize    192.168.10.242.qcow2   +80G
+qemu-img resize    192.168.10.243.qcow2   +80G
+
+
+rm -rf /etc/yum.repos.d/*
+curl http://172.16.100.21/getrepo/CentOS-Base.repo              >>   /etc/yum.repos.d/CentOS-Base.repo
+
+
+yum -y install cloud-utils-growpart  -y
+growpart   /dev/vda 1
+partprobe  
+xfs_growfs /dev/vda1
+
+poweroff
+
+cp 192.168.10.232.qcow2  192.168.10.232.qcow2-init
+cp 192.168.10.242.qcow2  192.168.10.242.qcow2-init
+cp 192.168.10.243.qcow2  192.168.10.243.qcow2-init
+
+
+
+
+
+master01
+192.168.10.232
+kube-apiserver kube-controllermanager kube-scheduler etcd
+
+TYPE=Ethernet
+BOOTPROTO=none
+NAME=eth0
+DEVICE=eth0
+ONBOOT=yes
+IPADDR=192.168.10.232
+NETMASK=255.255.255.0
+GATEWAY=192.168.10.1
+DNS1=192.168.10.1
+
+hostnamectl  set-hostname master01
+
+node01	
+192.168.10.242	kubelet
+
+TYPE=Ethernet
+BOOTPROTO=none
+NAME=eth0
+DEVICE=eth0
+ONBOOT=yes
+IPADDR=192.168.10.242
+NETMASK=255.255.255.0
+GATEWAY=192.168.10.1
+DNS1=192.168.10.1
+
+
+hostnamectl  set-hostname node01
+
+node02	
+192.168.10.243	kubelet
+
+TYPE=Ethernet
+BOOTPROTO=none
+NAME=eth0
+DEVICE=eth0
+ONBOOT=yes
+IPADDR=192.168.10.242
+NETMASK=255.255.255.0
+GATEWAY=192.168.10.1
+DNS1=192.168.10.1
+
+hostnamectl  set-hostname node02
+
+
+
+#######  all    
+
+cat  >> /etc/hosts << EOF
+192.168.10.242 node01
+192.168.10.243 node02
+192.168.10.232 master01
+EOF
+
+
+sed -i 's/enforcing/disabled/g'  /etc/selinux/config
+setenforce 0
+
+sed -i 's/#UseDNS yes/UseDNS no/g'   /etc/ssh/sshd_config
+systemctl   restart sshd
+
+systemctl  disable firewalld  NetworkManager
+systemctl  stop    firewalld    NetworkManager
+
+grep DNS               /etc/ssh/sshd_config
+grep SELINUX=disabled  /etc/selinux/config 
+
+
+yum -y install ntpdate
+
+
+yum install -y conntrack ipvsadm ipset jq sysstat curl iptables libseccomp
+
+
+iptables -F  &&  iptables -X &&  iptables -F -t nat &&  iptables -X -t nat
+iptables -P  FORWARD ACCEPT
+
+
+swapoff -a
+sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
+沒有安裝 ？？？
+systemctl  stop    dnsmasq 
+systemctl  disable dnsmasq
+
+service dnsmasq stop
+systemctl disable dnsmasq
+
+
+modprobe br_netfilter
+modprobe ip_vs
+
+cat > /etc/sysctl.d/kubernetes.conf  <<EOF
+net.bridge.bridge-nf-call-iptables=1
+net.bridge.bridge-nf-call-ip6tables=1
+net.ipv4.ip_forward=1
+net.ipv4.tcp_tw_recycle=0
+vm.swappiness=0
+vm.overcommit_memory=1
+vm.panic_on_oom=0
+fs.inotify.max_user_watches=89100
+fs.file-max=52706963
+fs.nr_open=52706963
+net.ipv6.conf.all.disable_ipv6=1
+net.netfilter.nf_conntrack_max=2310720
+EOF
+
+
+sysctl -p /etc/sysctl.d/kubernetes.conf
+
+
+mount | grep  cpu,cpuacct
+
+#mount -t cgroup -o cpu,cpuacct none /sys/fs/cgroup/cpu,cpuacct
+
+timedatectl set-timezone Asia/Shanghai
+
+ntpdate cn.pool.ntp.org
+
+timedatectl set-local-rtc 0
+
+systemctl restart rsyslog
+systemctl restart crond
+
+
+chmod +x /etc/rc.d/rc.local
+vim x /etc/rc.d/rc.local
+
+ntpdate cn.pool.ntp.org
+timedatectl set-local-rtc 0
+touch /var/lock/subsys/local
+
+
+关机
+快照 name  
+env-OK
+

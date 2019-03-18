@@ -1,0 +1,161 @@
+master01
+
+cd /opt/k8s
+
+cat > kube-controller-manager-csr.json <<EOF
+{
+    "CN": "system:kube-controller-manager",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "hosts": [
+      "127.0.0.1",
+      "192.168.10.232",
+      "192.168.10.242",
+      "192.168.10.243"
+    ],
+    "names": [
+      {
+        "C": "CN",
+        "ST": "BeiJing",
+        "L": "BeiJing",
+        "O": "system:kube-controller-manager",
+        "OU": "4Paradigm"
+      }
+    ]
+}
+EOF
+
+
+
+
+cfssl gencert -ca=/etc/kubernetes/cert/ca.pem \
+  -ca-key=/etc/kubernetes/cert/ca-key.pem \
+  -config=/etc/kubernetes/cert/ca-config.json \
+  -profile=kubernetes kube-controller-manager-csr.json | cfssljson -bare kube-controller-manager
+
+
+
+
+
+cp kube-controller-manager*.pem /etc/kubernetes/cert/ && chown -R k8s /etc/kubernetes/cert/
+
+
+export KUBE_APISERVER="https://192.168.10.232:6443"
+
+kubectl config set-cluster kubernetes \
+  --certificate-authority=/etc/kubernetes/cert/ca.pem \
+  --embed-certs=true \
+  --server=${KUBE_APISERVER} \
+  --kubeconfig=kube-controller-manager.kubeconfig
+
+kubectl config set-credentials system:kube-controller-manager \
+  --client-certificate=kube-controller-manager.pem \
+  --client-key=kube-controller-manager-key.pem \
+  --embed-certs=true \
+  --kubeconfig=kube-controller-manager.kubeconfig
+
+kubectl config set-context system:kube-controller-manager \
+  --cluster=kubernetes \
+  --user=system:kube-controller-manager \
+  --kubeconfig=kube-controller-manager.kubeconfig
+
+kubectl config use-context system:kube-controller-manager --kubeconfig=kube-controller-manager.kubeconfig
+cp kube-controller-manager.kubeconfig /etc/kubernetes/
+
+
+
+
+
+export SERVICE_CIDR="10.254.0.0/16"
+cat > kube-controller-manager.service <<EOF
+[Unit]
+Description=Kubernetes Controller Manager
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+
+[Service]
+ExecStart=/opt/k8s/bin/kube-controller-manager \\
+  --port=10252 \\
+  --secure-port=0 \\
+  --bind-address=127.0.0.1 \\
+  --kubeconfig=/etc/kubernetes/kube-controller-manager.kubeconfig \\
+  --service-cluster-ip-range=${SERVICE_CIDR} \\
+  --cluster-name=kubernetes \\
+  --cluster-signing-cert-file=/etc/kubernetes/cert/ca.pem \\
+  --cluster-signing-key-file=/etc/kubernetes/cert/ca-key.pem \\
+  --experimental-cluster-signing-duration=8760h \\
+  --root-ca-file=/etc/kubernetes/cert/ca.pem \\
+  --service-account-private-key-file=/etc/kubernetes/cert/ca-key.pem \\
+  --leader-elect=true \\
+  --feature-gates=RotateKubeletServerCertificate=true \\
+  --controllers=*,bootstrapsigner,tokencleaner \\
+  --horizontal-pod-autoscaler-use-rest-clients=true \\
+  --horizontal-pod-autoscaler-sync-period=10s \\
+  --tls-cert-file=/etc/kubernetes/cert/kube-controller-manager.pem \\
+  --tls-private-key-file=/etc/kubernetes/cert/kube-controller-manager-key.pem \\
+  --use-service-account-credentials=true \\
+  --alsologtostderr=true \\
+  --logtostderr=false \\
+  --log-dir=/var/log/kubernetes \\
+  --v=2
+Restart=on
+Restart=on-failure
+RestartSec=5
+User=k8s
+
+[Install]
+WantedBy=multi-user.target
+EOF
+cp kube-controller-manager.service /etc/systemd/system/
+
+
+chown  -R k8s /etc/kubernetes/
+
+systemctl daemon-reload && systemctl enable kube-controller-manager && systemctl restart kube-controller-manager
+
+systemctl status  kube-controller-manager
+
+
+查看当前的controller manager leader
+
+kubectl get endpoints kube-controller-manager --namespace=kube-system  -o yaml
+
+
+
+
+
+apiVersion: v1
+kind: Endpoints
+metadata:
+  annotations:
+    control-plane.alpha.kubernetes.io/leader: '{"holderIdentity":"master01_60def9a6-499d-11e9-8751-5254003d139c","leaseDurationSeconds":15,"acquireTime":"2019-03-18T16:46:45Z","renewTime":"2019-03-18T16:46:58Z","leaderTransitions":1}'
+  creationTimestamp: 2019-03-18T16:46:08Z
+  name: kube-controller-manager
+  namespace: kube-system
+  resourceVersion: "360"
+  selfLink: /api/v1/namespaces/kube-system/endpoints/kube-controller-manager
+  uid: 5493a8a1-499d-11e9-98cb-5254003d139c
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

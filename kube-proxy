@@ -1,0 +1,199 @@
+node01  node02
+
+scp 192.168.10.232:/opt/k8s/bin/kube-proxy   /opt/k8s/bin/
+
+
+
+
+cd /opt/k8s
+
+
+cat > kube-proxy-csr.json <<EOF
+{
+  "CN": "system:kube-proxy",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "CN",
+      "ST": "BeiJing",
+      "L": "BeiJing",
+      "O": "k8s",
+      "OU": "4Paradigm"
+    }
+  ]
+}
+EOF
+
+
+
+cfssl gencert -ca=/etc/kubernetes/cert/ca.pem \
+  -ca-key=/etc/kubernetes/cert/ca-key.pem \
+  -config=/etc/kubernetes/cert/ca-config.json \
+  -profile=kubernetes  kube-proxy-csr.json | cfssljson -bare kube-proxy
+
+
+
+
+
+export KUBE_APISERVER="https://192.168.10.232:6443"
+
+kubectl config set-cluster kubernetes \
+  --certificate-authority=/etc/kubernetes/cert/ca.pem \
+  --embed-certs=true \
+  --server=${KUBE_APISERVER} \
+  --kubeconfig=kube-proxy.kubeconfig
+
+kubectl config set-credentials kube-proxy \
+  --client-certificate=kube-proxy.pem \
+  --client-key=kube-proxy-key.pem \
+  --embed-certs=true \
+  --kubeconfig=kube-proxy.kubeconfig
+
+kubectl config set-context default \
+  --cluster=kubernetes \
+  --user=kube-proxy \
+  --kubeconfig=kube-proxy.kubeconfig
+
+kubectl config use-context default --kubeconfig=kube-proxy.kubeconfig
+
+
+
+
+export node_name=192.168.10.242
+scp kube-proxy.kubeconfig k8s@${node_name}:/etc/kubernetes/
+
+
+
+
+export node_name=192.168.10.243
+scp kube-proxy.kubeconfig k8s@${node_name}:/etc/kubernetes/
+
+
+
+
+
+node01
+
+export NODE_IP=192.168.10.242
+export CLUSTER_CIDR="172.30.0.0/16"
+
+cat >kube-proxy.config.yaml.template <<EOF
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+bindAddress: ${NODE_IP}
+clientConnection:
+  kubeconfig: /etc/kubernetes/kube-proxy.kubeconfig
+clusterCIDR: ${CLUSTER_CIDR}
+healthzBindAddress: ${NODE_IP}:10256
+hostnameOverride: ${NODE_IP}
+kind: KubeProxyConfiguration
+metricsBindAddress: ${NODE_IP}:10249
+mode: "ipvs"
+EOF
+
+
+
+cp     kube-proxy.config.yaml.template      /etc/kubernetes/kube-proxy.config.yaml
+
+
+
+
+
+
+
+
+
+
+node03
+
+export NODE_IP=192.168.10.243
+export CLUSTER_CIDR="172.30.0.0/16"
+
+cat >kube-proxy.config.yaml.template <<EOF
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+bindAddress: ${NODE_IP}
+clientConnection:
+  kubeconfig: /etc/kubernetes/kube-proxy.kubeconfig
+clusterCIDR: ${CLUSTER_CIDR}
+healthzBindAddress: ${NODE_IP}:10256
+hostnameOverride: ${NODE_IP}
+kind: KubeProxyConfiguration
+metricsBindAddress: ${NODE_IP}:10249
+mode: "ipvs"
+EOF
+
+
+
+cp     kube-proxy.config.yaml.template      /etc/kubernetes/kube-proxy.config.yaml
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+node01  node02
+
+cat > kube-proxy.service <<EOF
+[Unit]
+Description=Kubernetes Kube-Proxy Server
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+After=network.target
+
+[Service]
+WorkingDirectory=/var/lib/kube-proxy
+ExecStart=/opt/k8s/bin/kube-proxy \\
+  --config=/etc/kubernetes/kube-proxy.config.yaml \\
+  --alsologtostderr=true \\
+  --logtostderr=false \\
+  --log-dir=/var/log/kubernetes \\
+  --v=2
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+
+cp kube-proxy.service /etc/systemd/system/
+
+
+
+
+
+
+mkdir -p /var/lib/kube-proxy
+systemctl daemon-reload && systemctl enable kube-proxy && systemctl restart kube-proxy
+systemctl status kube-proxy
+
+
+[root@node01 /]#  netstat -lnpt|grep kube-prox
+tcp        0      0 192.168.10.242:10249    0.0.0.0:*               LISTEN      21328/kube-proxy    
+tcp        0      0 192.168.10.242:10256    0.0.0.0:*               LISTEN      21328/kube-proxy    
+
+
+[root@node01 /]# ipvsadm -ln
+IP Virtual Server version 1.2.1 (size=4096)
+Prot LocalAddress:Port Scheduler Flags
+  -> RemoteAddress:Port           Forward Weight ActiveConn InActConn
+TCP  10.254.0.1:443 rr
+  -> 192.168.10.232:6443          Masq    1      0          0      
+
+
+
+
+
+
+
+

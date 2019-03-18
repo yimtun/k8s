@@ -1,0 +1,596 @@
+useradd -m k8s 
+sh -c 'echo 123456 | passwd k8s --stdin'
+
+
+mkdir -p /opt/k8s/bin
+chown -R k8s /opt/k8s
+
+mkdir -p /etc/kubernetes/cert
+chown -R k8s /etc/kubernetes
+
+master only:
+mkdir -p /etc/etcd/cert
+chown -R k8s /etc/etcd/cert
+mkdir -p /var/lib/etcd && chown -R k8s /etc/etcd/cert
+
+
+
+sh -c "echo 'export PATH=/opt/k8s/bin:$PATH' >> ~/.bashrc"
+source ~/.bashrc
+
+cfssl  install 
+
+mkdir -p /opt/k8s/cert &&  chown -R k8s /opt/k8s && cd /opt/k8s
+yum -y  install wget
+
+wget https://pkg.cfssl.org/R1.2/cfssl_linux-amd64
+mv cfssl_linux-amd64 /opt/k8s/bin/cfssl
+
+wget https://pkg.cfssl.org/R1.2/cfssljson_linux-amd64
+mv cfssljson_linux-amd64 /opt/k8s/bin/cfssljson
+
+wget https://pkg.cfssl.org/R1.2/cfssl-certinfo_linux-amd64
+mv cfssl-certinfo_linux-amd64 /opt/k8s/bin/cfssl-certinfo
+
+chmod +x /opt/k8s/bin/*
+export PATH=/opt/k8s/bin:$PATH
+
+
+
+
+ll /opt/k8s/bin/cfssl*
+-rwxr-xr-x 1 root root 10376657 Mar 30  2016 /opt/k8s/bin/cfssl
+-rwxr-xr-x 1 root root  6595195 Mar 30  2016 /opt/k8s/bin/cfssl-certinfo
+-rwxr-xr-x 1 root root  2277873 Mar 30  2016 /opt/k8s/bin/cfssljson
+
+
+
+创建根证书
+
+pwd
+/opt/k8s
+
+
+cat > ca-config.json <<EOF
+{
+  "signing": {
+    "default": {
+      "expiry": "87600h"
+    },
+    "profiles": {
+      "kubernetes": {
+        "usages": [
+            "signing",
+            "key encipherment",
+            "server auth",
+            "client auth"
+        ],
+        "expiry": "87600h"
+      }
+    }
+  }
+}
+EOF
+
+
+
+
+创建证书签名请求文件
+
+cat > ca-csr.json <<EOF
+{
+  "CN": "kubernetes",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "CN",
+      "ST": "BeiJing",
+      "L": "BeiJing",
+      "O": "k8s",
+      "OU": "4Paradigm"
+    }
+  ]
+}
+EOF
+
+
+cfssl gencert -initca ca-csr.json | cfssljson -bare ca -
+
+
+分发证书文件
+将生成的 CA 证书、秘钥文件、配置文件拷贝到所有master节点和node节点的 /etc/kubernetes/cert 目录下
+并保证k8s用户有读写 /etc/kubernetes 目录及其子目录文件的权限：
+
+cd /opt/k8s
+scp ca*.pem ca-config.json 192.168.10.243:/etc/kubernetes/cert/
+scp ca*.pem ca-config.json 192.168.10.242:/etc/kubernetes/cert/
+
+cd /opt/k8s/
+
+cp ca*.pem ca-config.json /etc/kubernetes/cert/
+chown -R k8s /etc/kubernetes
+
+
+
+下载和分发 kubectl 二进制文件
+
+
+tar xzvf kubernetes-client-linux-amd64.tar.gz
+cp kubernetes/client/bin/kubectl /opt/k8s/bin/
+
+tar zxvf kubernetes-server-linux-amd64.tar.gz
+
+cp kubernetes/server/bin/kubelet /opt/k8s/bin/
+cp kubernetes/server/bin/kube-proxy  /opt/k8s/bin/
+cp kubernetes/server/bin/kube-apiserver   /opt/k8s/bin/
+cp kubernetes/server/bin/kube-controller-manager    /opt/k8s/bin/
+cp kubernetes/server/bin/kube-scheduler     /opt/k8s/bin/
+
+
+ll  /opt/k8s/bin/k*
+-rwxr-xr-x 1 root root 192762219 Mar 17 16:08 /opt/k8s/bin/kube-apiserver
+-rwxr-xr-x 1 root root 162936461 Mar 17 16:09 /opt/k8s/bin/kube-controller-manager
+-rwxr-xr-x 1 root root  57343669 Mar 17 16:11 /opt/k8s/bin/kubectl
+-rwxr-xr-x 1 root root 176723776 Mar 17 16:08 /opt/k8s/bin/kubelet
+-rwxr-xr-x 1 root root  50436059 Mar 17 16:08 /opt/k8s/bin/kube-proxy
+-rwxr-xr-x 1 root root  57176355 Mar 17 16:09 /opt/k8s/bin/kube-scheduler
+
+
+
+创建 admin 证书和私钥
+
+cd /opt/k8s/
+
+cat > admin-csr.json <<EOF
+{
+  "CN": "admin",
+  "hosts": [],
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "CN",
+      "ST": "BeiJing",
+      "L": "BeiJing",
+      "O": "system:masters",
+      "OU": "4Paradigm"
+    }
+  ]
+}
+EOF
+
+
+生成证书和私钥：
+
+cfssl gencert -ca=/etc/kubernetes/cert/ca.pem \  
+-ca-key=/etc/kubernetes/cert/ca-key.pem       \
+-config=/etc/kubernetes/cert/ca-config.json   \
+-profile=kubernetes /opt/k8s/admin-csr.json | cfssljson -bare admin
+
+
+cd /opt/k8s/
+
+ls admin*
+admin.csr  admin-csr.json  admin-key.pem  admin.pem
+
+
+创建 kubeconfig 文件
+
+master01运行
+
+cd /opt/k8s
+
+export MASTER_VIP=192.168.10.232
+export KUBE_APISERVER="https://${MASTER_VIP}:6443"
+
+设置集群参数
+
+kubectl config set-cluster kubernetes \
+  --certificate-authority=/etc/kubernetes/cert/ca.pem \
+  --embed-certs=true \
+  --server=${KUBE_APISERVER} \
+  --kubeconfig=kubectl.kubeconfig
+
+
+grep name  /opt/k8s/kubectl.kubeconfig 
+  name: kubernetes
+
+
+
+
+设置客户端认证参数
+
+kubectl config set-credentials admin \
+  --client-certificate=admin.pem \
+  --client-key=admin-key.pem \
+  --embed-certs=true \
+  --kubeconfig=kubectl.kubeconfig
+
+
+grep name  /opt/k8s/kubectl.kubeconfig 
+  name: kubernetes
+- name: admin
+
+
+
+设置上下文参数
+
+kubectl config set-context kubernetes \
+  --cluster=kubernetes \
+  --user=admin \
+  --kubeconfig=kubectl.kubeconfig
+
+
+设置默认上下文
+
+kubectl config use-context kubernetes --kubeconfig=kubectl.kubeconfig
+
+
+
+分发 kubeconfig 文件
+将生成的 kubectl.kubeconfig 文件分发到所有使用 kubectl 命令的节点上，比如我们的master01，并改名放置 ~/.kube/config
+
+mkdir -p ~/.kube
+cp kubectl.kubeconfig ~/.kube/config
+
+
+
+
+
+etcd
+tar -xvf etcd-v3.3.7-linux-amd64.tar.gz
+
+cp etcd-v3.3.7-linux-amd64/etcd* /opt/k8s/bin/
+
+创建 etcd 证书和私钥
+
+cd /opt/k8s/
+
+
+cat > etcd-csr.json <<EOF
+{
+  "CN": "etcd",
+  "hosts": [
+    "127.0.0.1",
+    "192.168.10.232",
+    "192.168.10.242",
+    "192.168.10.243"
+  ],
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "CN",
+      "ST": "BeiJing",
+      "L": "BeiJing",
+      "O": "k8s",
+      "OU": "4Paradigm"
+    }
+  ]
+}
+EOF
+
+
+cfssl gencert -ca=/etc/kubernetes/cert/ca.pem \
+    -ca-key=/etc/kubernetes/cert/ca-key.pem \
+    -config=/etc/kubernetes/cert/ca-config.json \
+    -profile=kubernetes /opt/k8s/etcd-csr.json | cfssljson -bare etcd
+
+
+
+
+分发生成的证书和私钥到各 etcd 节点：
+
+如果使用etcd集群，这个动作需要在每个节点都运行
+cp etcd*.pem /etc/etcd/cert/
+chown -R k8s /etc/etcd/cert/
+
+
+
+
+创建 etcd 的 systemd unit 模板文件
+
+export ETCD_NODES="master01=https://192.168.10.232:2380"
+
+
+
+cat > /usr/lib/systemd/system/etcd.service <<EOF
+[Unit]
+Description=Etcd Server
+After=network.target
+After=network-online.target
+Wants=network-online.target
+Documentation=https://github.com/coreos
+
+[Service]
+User=k8s
+Type=notify
+WorkingDirectory=/var/lib/etcd/
+ExecStart=/opt/k8s/bin/etcd \\
+  --data-dir=/var/lib/etcd \\
+  --name=##NODE_NAME## \\
+  --cert-file=/etc/etcd/cert/etcd.pem \\
+  --key-file=/etc/etcd/cert/etcd-key.pem \\
+  --trusted-ca-file=/etc/kubernetes/cert/ca.pem \\
+  --peer-cert-file=/etc/etcd/cert/etcd.pem \\
+  --peer-key-file=/etc/etcd/cert/etcd-key.pem \\
+  --peer-trusted-ca-file=/etc/kubernetes/cert/ca.pem \\
+  --peer-client-cert-auth \\
+  --client-cert-auth \\
+  --listen-peer-urls=https://##NODE_IP##:2380 \\
+  --initial-advertise-peer-urls=https://##NODE_IP##:2380 \\
+  --listen-client-urls=https://##NODE_IP##:2379,http://127.0.0.1:2379 \\
+  --advertise-client-urls=https://##NODE_IP##:2379 \\
+  --initial-cluster-token=etcd-cluster-0 \\
+  --initial-cluster=${NODE_NAME} \\
+  --initial-cluster-state=new
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+
+替换真是的NODE_NAME 和NODE_IP
+export NODE_NAME=master01
+export NODE_IP=192.168.10.232
+sed -i -e "s/##NODE_NAME##/${NODE_NAME}/" -e "s/##NODE_IP##/${NODE_IP}/" /usr/lib/systemd/system/etcd.service
+
+
+mkdir -p /var/lib/etcd && chown -R k8s /var/lib/etcd
+
+
+
+cat  /usr/lib/systemd/system/etcd.service 
+[Unit]
+Description=Etcd Server
+After=network.target
+After=network-online.target
+Wants=network-online.target
+Documentation=https://github.com/coreos
+
+[Service]
+User=k8s
+Type=notify
+WorkingDirectory=/var/lib/etcd/
+ExecStart=/opt/k8s/bin/etcd \
+  --data-dir=/var/lib/etcd \
+  --name=master01 \
+  --cert-file=/etc/etcd/cert/etcd.pem \
+  --key-file=/etc/etcd/cert/etcd-key.pem \
+  --trusted-ca-file=/etc/kubernetes/cert/ca.pem \
+  --peer-cert-file=/etc/etcd/cert/etcd.pem \
+  --peer-key-file=/etc/etcd/cert/etcd-key.pem \
+  --peer-trusted-ca-file=/etc/kubernetes/cert/ca.pem \
+  --peer-client-cert-auth \
+  --client-cert-auth \
+  --listen-peer-urls=https://192.168.10.232:2380 \
+  --initial-advertise-peer-urls=https://192.168.10.232:2380 \
+  --listen-client-urls=https://192.168.10.232:2379,http://127.0.0.1:2379 \
+  --advertise-client-urls=https://192.168.10.232:2379 \
+  --initial-cluster-token=etcd-cluster-0 \
+  --initial-cluster=master01=https://192.168.10.232:2380 \
+  --initial-cluster-state=new
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+
+
+
+systemctl daemon-reload && systemctl enable etcd && systemctl restart etcd
+
+
+
+
+export node_ip=192.168.10.232
+ETCDCTL_API=3 etcdctl \
+    --endpoints=https://${node_ip}:2379 \
+    --cacert=/etc/kubernetes/cert/ca.pem \
+    --cert=/etc/etcd/cert/etcd.pem \
+    --key=/etc/etcd/cert/etcd-key.pem endpoint health
+
+
+
+
+
+
+flannel  all   master01  node02  node02
+
+wget https://github.com/coreos/flannel/releases/download/v0.11.0/flannel-v0.11.0-linux-amd64.tar.gz
+
+tar xvf flannel-v0.11.0-linux-amd64.tar.gz
+cp flanneld /opt/k8s/bin/
+cp mk-docker-opts.sh   /opt/k8s/bin/
+
+
+cd /opt/k8s
+
+
+cat > flanneld-csr.json <<EOF
+{
+  "CN": "flanneld",
+  "hosts": [],
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "CN",
+      "ST": "BeiJing",
+      "L": "BeiJing",
+      "O": "k8s",
+      "OU": "4Paradigm"
+    }
+  ]
+}
+EOF
+
+
+
+cfssl gencert -ca=/etc/kubernetes/cert/ca.pem \
+  -ca-key=/etc/kubernetes/cert/ca-key.pem \
+  -config=/etc/kubernetes/cert/ca-config.json \
+  -profile=kubernetes flanneld-csr.json | cfssljson -bare flanneld
+
+
+
+
+ls flanneld*pem
+将生成的证书和私钥分发到所有节点（master01,node01 和 node02）：
+
+mkdir -p /etc/flanneld/cert/
+chown  -R k8s /etc/flanneld/cert/
+
+
+node01 node02 
+useradd -m k8s
+sh -c 'echo 123456 | passwd k8s --stdin'
+mkdir -p /opt/k8s/bin
+chown -R k8s /opt/k8s
+mkdir -p /etc/kubernetes/cert
+chown -R k8s /etc/kubernetes
+mkdir -p /etc/flanneld/cert/
+chown  -R k8s /etc/flanneld/cert/
+sh -c "echo 'export PATH=/opt/k8s/bin:$PATH' >> ~/.bashrc"
+source ~/.bashrc
+
+
+
+
+cp flanneld*.pem /etc/flanneld/cert
+scp flanneld*.pem k8s@192.168.10.242:/etc/flanneld/cert
+scp flanneld*.pem k8s@192.168.10.243:/etc/flanneld/cert
+
+
+
+向 etcd 写入集群 Pod 网段信息
+
+export ETCD_ENDPOINTS="https://192.168.10.232:2379"
+# Pod 网段，建议 /16 段地址，部署前路由不可达，部署后集群内路由可达(flanneld 保证)
+
+export CLUSTER_CIDR="172.30.0.0/16"
+# flanneld 网络配置前缀
+
+export FLANNEL_ETCD_PREFIX="/kubernetes/network"
+
+
+etcdctl \
+  --endpoints=${ETCD_ENDPOINTS} \
+  --ca-file=/etc/kubernetes/cert/ca.pem \
+  --cert-file=/etc/flanneld/cert/flanneld.pem \
+  --key-file=/etc/flanneld/cert/flanneld-key.pem \
+  set ${FLANNEL_ETCD_PREFIX}/config '{"Network":"'${CLUSTER_CIDR}'", "SubnetLen": 24, "Backend": {"Type": "vxlan"}}'
+
+
+
+
+etcdctl \
+  --endpoints=${ETCD_ENDPOINTS} \
+  --ca-file=/etc/kubernetes/cert/ca.pem \
+  --cert-file=/etc/flanneld/cert/flanneld.pem \
+  --key-file=/etc/flanneld/cert/flanneld-key.pem \
+  get ${FLANNEL_ETCD_PREFIX}/config
+
+
+
+{"Network":"172.30.0.0/16", "SubnetLen": 24, "Backend": {"Type": "vxlan"}}
+
+
+
+node01 node02
+
+export ETCD_ENDPOINTS="https://192.168.10.232:2379"
+export IFACE="eth0"
+export FLANNEL_ETCD_PREFIX="/kubernetes/network"
+
+
+cat > flanneld.service << EOF
+[Unit]
+Description=Flanneld overlay address etcd agent
+After=network.target
+After=network-online.target
+Wants=network-online.target
+After=etcd.service
+Before=docker.service
+
+[Service]
+Type=notify
+ExecStart=/opt/k8s/bin/flanneld \\
+  -etcd-cafile=/etc/kubernetes/cert/ca.pem \\
+  -etcd-certfile=/etc/flanneld/cert/flanneld.pem \\
+  -etcd-keyfile=/etc/flanneld/cert/flanneld-key.pem \\
+  -etcd-endpoints=${ETCD_ENDPOINTS} \\
+  -etcd-prefix=${FLANNEL_ETCD_PREFIX} \\
+  -iface=${IFACE}
+ExecStartPost=/opt/k8s/bin/mk-docker-opts.sh -k DOCKER_NETWORK_OPTIONS -d /run/flannel/docker
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+RequiredBy=docker.service
+EOF
+
+
+
+cp  flanneld.service  /usr/lib/systemd/system/
+
+
+
+systemctl daemon-reload && systemctl enable flanneld && systemctl restart flanneld
+systemctl status flanneld
+
+
+
+
+
+node01
+ip addr show flannel.1|grep -w inet
+    inet 172.30.67.0/32 scope global flannel.1
+
+ping -c 1 172.30.34.0
+PING 172.30.34.0 (172.30.34.0) 56(84) bytes of data.
+64 bytes from 172.30.34.0: icmp_seq=1 ttl=64 time=1.18 ms
+
+node02
+ip addr show flannel.1|grep -w inet
+    inet 172.30.34.0/32 scope global flannel.1
+
+ping -c 1 172.30.67.0
+PING 172.30.67.0 (172.30.67.0) 56(84) bytes of data.
+64 bytes from 172.30.67.0: icmp_seq=1 ttl=64 time=1.61 ms
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
