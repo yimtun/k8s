@@ -338,44 +338,6 @@ cat > csr-crb.yaml <<EOF
    kind: ClusterRole
    name: system:certificates.k8s.io:certificatesigningrequests:nodeclient
    apiGroup: rbac.authorization.k8s.io
- # To let a node of the group "system:nodes" renew its own credentials
- kind: ClusterRoleBinding
- apiVersion: rbac.authorization.k8s.io/v1
- metadata:
-   name: node-client-cert-renewal
- subjects:
- - kind: Group
-   name: system:nodes
-   apiGroup: rbac.authorization.k8s.io
-metadata:
-- apiGroups: ["certificates.k8s.io"]
- # To let a node of the group "system:nodes" renew its own server credentials
- subjects:
- - kind: Group
-   name: system:nodes
-   apiGroup: rbac.authorization.k8s.io
- roleRef:
-   kind: ClusterRole
-   name: approve-node-server-renewal-csr
-   apiGroup: rbac.authorization.k8s.io
-EOF
-
-
-
-cat > csr-crb.yaml <<EOF
- # Approve all CSRs for the group "system:bootstrappers"
- kind: ClusterRoleBinding
- apiVersion: rbac.authorization.k8s.io/v1
- metadata:
-   name: auto-approve-csrs-for-group
- subjects:
- - kind: Group
-   name: system:bootstrappers
-   apiGroup: rbac.authorization.k8s.io
- roleRef:
-   kind: ClusterRole
-   name: system:certificates.k8s.io:certificatesigningrequests:nodeclient
-   apiGroup: rbac.authorization.k8s.io
 ---
  # To let a node of the group "system:nodes" renew its own credentials
  kind: ClusterRoleBinding
@@ -416,83 +378,23 @@ rules:
    name: approve-node-server-renewal-csr
    apiGroup: rbac.authorization.k8s.io
 EOF
-
-
-
-
-
-
 
 
 
 kubectl apply -f csr-crb.yaml
 
-cat  csr-crb.yaml 
- # Approve all CSRs for the group "system:bootstrappers"
- kind: ClusterRoleBinding
- apiVersion: rbac.authorization.k8s.io/v1
- metadata:
-   name: auto-approve-csrs-for-group
- subjects:
- - kind: Group
-   name: system:bootstrappers
-   apiGroup: rbac.authorization.k8s.io
- roleRef:
-   kind: ClusterRole
-   name: system:certificates.k8s.io:certificatesigningrequests:nodeclient
-   apiGroup: rbac.authorization.k8s.io
----
- # To let a node of the group "system:nodes" renew its own credentials
- kind: ClusterRoleBinding
- apiVersion: rbac.authorization.k8s.io/v1
- metadata:
-   name: node-client-cert-renewal
- subjects:
- - kind: Group
-   name: system:nodes
-   apiGroup: rbac.authorization.k8s.io
- roleRef:
-   kind: ClusterRole
-   name: system:certificates.k8s.io:certificatesigningrequests:selfnodeclient
-   apiGroup: rbac.authorization.k8s.io
----
-# A ClusterRole which instructs the CSR approver to approve a node requesting a
-# serving cert matching its client cert.
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: approve-node-server-renewal-csr
-rules:
-- apiGroups: ["certificates.k8s.io"]
-  resources: ["certificatesigningrequests/selfnodeserver"]
-  verbs: ["create"]
----
- # To let a node of the group "system:nodes" renew its own server credentials
- kind: ClusterRoleBinding
- apiVersion: rbac.authorization.k8s.io/v1
- metadata:
-   name: node-server-cert-renewal
- subjects:
- - kind: Group
-   name: system:nodes
-   apiGroup: rbac.authorization.k8s.io
- roleRef:
-   kind: ClusterRole
-   name: approve-node-server-renewal-csr
-   apiGroup: rbac.authorization.k8s.io
 
-
-
-
-
-
-
+[root@master01 opt]# kubectl get csr
+NAME                                                   AGE     REQUESTOR                 CONDITION
+node-csr-UdewAv1EjCK5tb0GHUHN30KiM6zU6SgGk_nMIcFHN-w   2m14s   system:bootstrap:or5wib   Approved,Issued
+node-csr-haht__hZh0WWH-NBg02SS7b-gPS1Cy3sdJwvxxtVum4   111s    system:bootstrap:0c5mxu   Approved,Issued
 
 
 
 
 
 node01
+yum -y install net-tools
 netstat -lnpt|grep kubelet
 tcp        0      0 127.0.0.1:10248         0.0.0.0:*               LISTEN      18086/kubelet       
 tcp        0      0 192.168.10.242:10250    0.0.0.0:*               LISTEN      18086/kubelet       
@@ -528,6 +430,14 @@ master01
 kubectl  run httpd --image=httpd --replicas=1
 kubectl  run httpod --image=httpd --restart=Never --image-pull-policy=IfNotPresent
 kubectl  get pod
+
+
+
+node01  node02
+docker pull registry.access.redhat.com/rhel7/pod-infrastructure
+docker  pull httpd
+docker pull nginx
+docker pull busybox
 
 
 
