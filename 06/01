@@ -1,0 +1,22 @@
+bare pod
+
+master   
+
+api server   更新 etcd
+controller manager   
+scheduler  即使有两个worker 节点 也会计算 将 pod  分配到哪个 worker node
+
+什么时候用到  scheduler ?
+
+
+worker
+
+kubelet
+kube-proxy
+
+
+服务发现   kube-proxy  
+
+
+
+
