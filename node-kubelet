@@ -530,6 +530,10 @@ kubectl  run httpod --image=httpd --restart=Never --image-pull-policy=IfNotPrese
 kubectl  get pod
 
 
+docker pull registry.access.redhat.com/rhel7/pod-infrastructure
+docer  pull httpd
+docker pull nginx
+docekr pull busybox
 
 
 registry.access.redhat.com/rhel7/pod-infrastructure:latest
