@@ -1,0 +1,92 @@
+https://v1-12.docs.kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/
+
+https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/#deploying-the-dashboard-ui
+
+
+
+kubectl create -f https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/recommended/kubernetes-dashboard.yaml
+
+
+curl https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/recommended/kubernetes-dashboard.yaml
+404: Not Found
+
+
+
+
+
+https://github.com/kubernetes/dashboard
+
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v1.10.1/src/deploy/recommended/kubernetes-dashboard.yaml
+
+wget https://raw.githubusercontent.com/kubernetes/dashboard/v1.10.1/src/deploy/recommended/kubernetes-dashboard.yaml
+
+docker pull k8s.gcr.io/kubernetes-dashboard-amd64:v1.10.1
+
+
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v1.10.1/src/deploy/recommended/kubernetes-dashboard.yaml
+
+secret/kubernetes-dashboard-certs created
+serviceaccount/kubernetes-dashboard created
+role.rbac.authorization.k8s.io/kubernetes-dashboard-minimal created
+rolebinding.rbac.authorization.k8s.io/kubernetes-dashboard-minimal created
+deployment.apps/kubernetes-dashboard created
+service/kubernetes-dashboard created
+
+
+kubectl  get service  -n kube-system
+
+kubectl  get  deployment   -n kube-system
+
+kubectl get pods --all-namespaces  -o wide
+
+kubectl delete -f kubernetes-dashboard.yaml
+
+kubectl proxy
+
+
+yum -y install xorg* firefox
+
+WARNING! The remote SSH server rejected X11 forwarding request
+
+
+
+X11Forwarding yes
+UseLogin no
+AddressFamily inet
+
+
+yum install xorg-x11-xauth
+
+
+systemctl  restart sshd
+
+firefox
+
+http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/
+
+
+https://192.168.10.232:6443/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/
+{
+  "kind": "Status",
+  "apiVersion": "v1",
+  "metadata": {
+    
+  },
+  "status": "Failure",
+  "message": "Unauthorized",
+  "reason": "Unauthorized",
+  "code": 401
+}
+
+
+
+
+
+
+
+
+
+
+
+
+https://github.com/kubernetes/kubernetes/tree/v1.12.0-rc.2/cluster/addons/dashboard

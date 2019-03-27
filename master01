@@ -128,15 +128,18 @@ cp kubernetes/server/bin/kube-proxy  /opt/k8s/bin/
 cp kubernetes/server/bin/kube-apiserver   /opt/k8s/bin/
 cp kubernetes/server/bin/kube-controller-manager    /opt/k8s/bin/
 cp kubernetes/server/bin/kube-scheduler     /opt/k8s/bin/
+cp kubernetes/server/bin/kubeadm  /opt/k8s/bin/
 
 
 ll  /opt/k8s/bin/k*
--rwxr-xr-x 1 root root 192762219 Mar 17 16:08 /opt/k8s/bin/kube-apiserver
--rwxr-xr-x 1 root root 162936461 Mar 17 16:09 /opt/k8s/bin/kube-controller-manager
--rwxr-xr-x 1 root root  57343669 Mar 17 16:11 /opt/k8s/bin/kubectl
--rwxr-xr-x 1 root root 176723776 Mar 17 16:08 /opt/k8s/bin/kubelet
--rwxr-xr-x 1 root root  50436059 Mar 17 16:08 /opt/k8s/bin/kube-proxy
--rwxr-xr-x 1 root root  57176355 Mar 17 16:09 /opt/k8s/bin/kube-scheduler
+-rwxr-xr-x 1 root root  54030188 Mar 23 21:31 /opt/k8s/bin/kubeadm
+-rwxr-xr-x 1 root root 192762219 Mar 23 21:30 /opt/k8s/bin/kube-apiserver
+-rwxr-xr-x 1 root root 162936461 Mar 23 21:30 /opt/k8s/bin/kube-controller-manager
+-rwxr-xr-x 1 root root  57343669 Mar 23 21:29 /opt/k8s/bin/kubectl
+-rwxr-xr-x 1 root root 176723776 Mar 23 21:30 /opt/k8s/bin/kubelet
+-rwxr-xr-x 1 root root  50436059 Mar 23 21:30 /opt/k8s/bin/kube-proxy
+-rwxr-xr-x 1 root root  57176355 Mar 23 21:30 /opt/k8s/bin/kube-scheduler
+
 
 
 
@@ -167,10 +170,12 @@ EOF
 
 生成证书和私钥：
 
-cfssl gencert -ca=/etc/kubernetes/cert/ca.pem \  
+cfssl gencert -ca=/etc/kubernetes/cert/ca.pem \
 -ca-key=/etc/kubernetes/cert/ca-key.pem       \
 -config=/etc/kubernetes/cert/ca-config.json   \
--profile=kubernetes /opt/k8s/admin-csr.json | cfssljson -bare admin
+-profile=kubernetes admin-csr.json | cfssljson -bare admin
+
+
 
 
 cd /opt/k8s/
@@ -350,7 +355,7 @@ mkdir -p /var/lib/etcd && chown -R k8s /var/lib/etcd
 
 
 
-cat  /usr/lib/systemd/system/etcd.service 
+cat  > /usr/lib/systemd/system/etcd.service  << EOF
 [Unit]
 Description=Etcd Server
 After=network.target
@@ -386,7 +391,7 @@ LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
-
+EOF
 
 
 
@@ -548,6 +553,8 @@ EOF
 
 cp  flanneld.service  /usr/lib/systemd/system/
 
+scp  master01:/opt/k8s/bin/flanneld    /opt/k8s/bin/
+scp master01:/opt/k8s/bin/mk-docker-opts.sh  /opt/k8s/bin/
 
 
 systemctl daemon-reload && systemctl enable flanneld && systemctl restart flanneld
@@ -572,25 +579,6 @@ ip addr show flannel.1|grep -w inet
 ping -c 1 172.30.67.0
 PING 172.30.67.0 (172.30.67.0) 56(84) bytes of data.
 64 bytes from 172.30.67.0: icmp_seq=1 ttl=64 time=1.61 ms
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

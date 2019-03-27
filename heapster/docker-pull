@@ -1,0 +1,5 @@
+docker pull k8s.gcr.io/heapster-influxdb-amd64:v1.5.2
+
+docker pull k8s.gcr.io/heapster-grafana-amd64:v5.0.4
+
+

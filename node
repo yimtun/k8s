@@ -1,0 +1,18 @@
+useradd -m k8s 
+sh -c 'echo 123456 | passwd k8s --stdin'
+
+
+mkdir -p /opt/k8s/bin
+chown -R k8s /opt/k8s
+
+mkdir -p /etc/kubernetes/cert
+chown -R k8s /etc/kubernetes
+
+
+mkdir -p /etc/flanneld/cert/
+chown  -R k8s /etc/flanneld/cert/
+
+sh -c "echo 'export PATH=/opt/k8s/bin:$PATH' >> ~/.bashrc"
+source ~/.bashrc
+
+
