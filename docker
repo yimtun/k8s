@@ -1,5 +1,6 @@
 node01   node02
 
+cd /opt
 
 tar -xvf docker-18.06.1-ce.tgz
 

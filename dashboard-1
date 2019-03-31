@@ -1,0 +1,229 @@
+node01  node02
+
+docker pull siriuszg/kubernetes-dashboard-amd64:v1.8.3
+
+
+master01
+
+cd /opt/k8s-v1.12.0-rc.2/kubernetes/cluster/addons/dashboard/
+
+
+cp dashboard-controller.yaml{,.orig}
+
+
+vim dashboard-controller.yaml
+
+image: siriuszg/kubernetes-dashboard-amd64:v1.8.3
+
+
+
+
+
+vim dashboard-service.yaml 
+spec:
+  selector:
+    k8s-app: kubernetes-dashboard
+  ports:
+  - port: 443
+    targetPort: 8443
+  type: NodePort
+
+
+
+
+
+ll *.yaml
+-rw-rw-r-- 1 root root  264 Sep 22  2018 dashboard-configmap.yaml
+-rw-rw-r-- 1 root root 1821 Sep 22  2018 dashboard-controller.yaml
+-rw-rw-r-- 1 root root 1353 Sep 22  2018 dashboard-rbac.yaml
+-rw-rw-r-- 1 root root  551 Sep 22  2018 dashboard-secret.yaml
+-rw-rw-r-- 1 root root  322 Sep 22  2018 dashboard-service.yaml
+
+
+
+
+
+kubectl create -f  .
+
+
+kubectl get deployment kubernetes-dashboard  -n kube-system
+
+
+kubectl --namespace kube-system get pods -o wide
+
+
+kubectl get services kubernetes-dashboard -n kube-system
+
+
+
+kubectl get services kubernetes-dashboard -n kube-system
+NAME                   TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)         AGE
+kubernetes-dashboard   NodePort   10.254.103.142   <none>        443:40605/TCP   13s
+
+
+
+
+kubectl create sa dashboard-admin -n kube-system
+
+kubectl create clusterrolebinding dashboard-admin --clusterrole=cluster-admin --serviceaccount=kube-system:dashboard-admin
+
+ADMIN_SECRET=$(kubectl get secrets -n kube-system | grep dashboard-admin | awk '{print $1}')
+
+echo $ADMIN_SECRET
+dashboard-admin-token-7mhfr
+
+
+DASHBOARD_LOGIN_TOKEN=$(kubectl describe secret -n kube-system ${ADMIN_SECRET} | grep -E '^token' | awk '{print $2}')
+
+
+echo ${DASHBOARD_LOGIN_TOKEN}
+eyJhbGciOiJSUzI1NiIsImtpZCI6IiJ9.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlLXN5c3RlbSIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJkYXNoYm9hcmQtYWRtaW4tdG9rZW4tN21oZnIiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC5uYW1lIjoiZGFzaGJvYXJkLWFkbWluIiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZXJ2aWNlLWFjY291bnQudWlkIjoiODNmMDRmODItNTM4NS0xMWU5LWE4YjUtMDAwYzI5NWM2MjE2Iiwic3ViIjoic3lzdGVtOnNlcnZpY2VhY2NvdW50Omt1YmUtc3lzdGVtOmRhc2hib2FyZC1hZG1pbiJ9.B0mwRgfzA0q-G_5KKEdE-fUKcYWIuOCVoYLgheoVoluyPnqYk3bMHYnpWeCMNVTIXLVpQphvPhDCo9Yq46_1DqhwOIiI5fRrCxHzt0_2I9NILWHnBrWcVj3bw0erb1-otVuQbIK-z6oXLYl3D7zbARITts1mPviZOOJ7PaX1CdckcHUgzQW-MEkuwci-5sdo0dbqjXD4YY8wBWoKFN-e8M6tSgnXsvx9SpGNzX_WanqDvm7-wPDYd8sqYeYoTGPs9ocnUTcP9e5CINqOK8tlM1hdWsqgt4TMcadWKur1_YzlMAWMtsUkANAOw-sNQbhYBNdpASidRoS4dbRoSjVsjQ
+
+
+
+
+cd /root/cert/
+
+export KUBE_APISERVER="https://192.168.10.232:6443"
+
+kubectl config set-cluster kubernetes \
+  --certificate-authority=/etc/kubernetes/cert/ca.pem \
+  --embed-certs=true \
+  --server=${KUBE_APISERVER} \
+  --kubeconfig=dashboard.kubeconfig
+
+
+kubectl config set-credentials dashboard_user \
+  --token=${DASHBOARD_LOGIN_TOKEN} \
+  --kubeconfig=dashboard.kubeconfig
+
+
+kubectl config set-context default \
+  --cluster=kubernetes \
+  --user=dashboard_user \
+  --kubeconfig=dashboard.kubeconfig
+
+
+
+kubectl config use-context default --kubeconfig=dashboard.kubeconfig
+
+
+
+
+kubectl --namespace kube-system get pods -o wide  | grep dashboard
+kubernetes-dashboard-65f974f565-pkrdj   1/1     Running   0          18m   172.30.67.4   192.168.10.242   <none>
+
+
+kubectl get services kubernetes-dashboard -n kube-system | grep dashboard
+kubernetes-dashboard   NodePort   10.254.103.142   <none>        443:40605/TCP   19m
+
+
+curl https://192.168.10.242:40605 -k
+
+
+
+
+https://192.168.10.242:40605/
+
+
+scp /root/cert/dashboard.kubeconfig  192.168.10.242:/
+
+
+ssh 192.168.10.242
+
+yum -y instalal firefox  xorg*
+
+vim /etc/ssh/sshd_config
+AddressFamily inet
+
+systemctl  restart sshd
+
+
+复制终端 知道开启终端后没有报错
+
+firefox
+https://192.168.10.242:40605
+
+bubeconfig
+
+/dashboard.kubeconfig
+
+
+yum -y install fonts-*
+fc-cache -fv
+
+
+export LANG=zh_CN.UTF-8
+
+
+
+
+windows 火狐浏览器
+
+ctrl  R
+
+MMC
+
+WIN键 +  R  输入 MMC
+管理控制台 -> 选择菜单“文件 -〉添加/删除管理单元”->列表中选择“证书”->点击“添加”-> 选择“计算机帐户” -> "本地计算机"->点击完成
+证书 受信任的根证书颁发机构  所有任务  导入 ca.crt
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

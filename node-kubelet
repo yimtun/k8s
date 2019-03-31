@@ -1,12 +1,10 @@
 node01 node02
 
-scp 192.168.10.232:/opt/k8s/bin/kubelet     /opt/k8s/bin/
-
-
 master01
 
-cd /opt/k8s
-cp kubernetes/server/bin/kubeadm  /opt/k8s/bin/
+scp /opt/k8s/bin/kubelet    node01:/opt/k8s/bin/
+scp /opt/k8s/bin/kubelet    node02:/opt/k8s/bin/
+
 
 export node_name="node01"
 # 创建 token
@@ -289,18 +287,10 @@ node-csr-Z2Aq4-6qxSTCs7xCk-cTdxOyzCg4ETcRXB-eRL7vLo0   2m11s   system:bootstrap:
 
 
 
-
 kubectl  describe     csr       node-csr-L1XJ_mUACv4ns4fjtjY63gfl5j263F2FPW3AAXIibMs
 
 
-
-
-
-
-
-
 kubectl  certificate  approve   node-csr-Z2Aq4-6qxSTCs7xCk-cTdxOyzCg4ETcRXB-eRL7vLo0
-
 
 
 kubectl get csr
@@ -309,13 +299,7 @@ node-csr-L1XJ_mUACv4ns4fjtjY63gfl5j263F2FPW3AAXIibMs   6m58s   system:bootstrap:
 node-csr-Z2Aq4-6qxSTCs7xCk-cTdxOyzCg4ETcRXB-eRL7vLo0   3m31s   system:bootstrap:9qccpj   Approved,Issued
 
 
-
 kubectl  describe     csr      node-csr-Z2Aq4-6qxSTCs7xCk-cTdxOyzCg4ETcRXB-eRL7vLo0 
-
-
-
-
-
 
 
 自动 approve CSR 请求
@@ -323,6 +307,7 @@ kubectl  describe     csr      node-csr-Z2Aq4-6qxSTCs7xCk-cTdxOyzCg4ETcRXB-eRL7v
 master01
 
 创建三个 ClusterRoleBinding，分别用于自动 approve client、renew client、renew server 证书：
+
 
 cat > csr-crb.yaml <<EOF
  # Approve all CSRs for the group "system:bootstrappers"
@@ -380,7 +365,6 @@ rules:
 EOF
 
 
-
 kubectl apply -f csr-crb.yaml
 
 
@@ -393,18 +377,12 @@ node-csr-haht__hZh0WWH-NBg02SS7b-gPS1Cy3sdJwvxxtVum4   111s    system:bootstrap:
 
 
 
-node01
+node01  node02
 yum -y install net-tools
 netstat -lnpt|grep kubelet
 tcp        0      0 127.0.0.1:10248         0.0.0.0:*               LISTEN      18086/kubelet       
 tcp        0      0 192.168.10.242:10250    0.0.0.0:*               LISTEN      18086/kubelet       
 tcp        0      0 127.0.0.1:37254         0.0.0.0:*               LISTEN      18086/kubelet     
-
-
-
-[root@node01 /]# docker pull httpd
-Using default tag: latest
-Error response from daemon: Get https://registry-1.docker.io/v2/: net/http: TLS handshake timeout
 
 
 
@@ -423,7 +401,23 @@ EOF
 systemctl daemon-reload
 systemctl restart docker
 
+
+
+docker pull registry.access.redhat.com/rhel7/pod-infrastructure
 docker pull httpd
+docker pull nginx
+docker pull busybox
+
+
+
+
+
+
+
+
+
+
+
 
 master01
 
@@ -432,24 +426,8 @@ kubectl  run httpod --image=httpd --restart=Never --image-pull-policy=IfNotPrese
 kubectl  get pod
 
 
-
-node01  node02
-docker pull registry.access.redhat.com/rhel7/pod-infrastructure
-docker  pull httpd
-docker pull nginx
-docker pull busybox
-
-
-
-
-registry.access.redhat.com/rhel7/pod-infrastructure:latest
-
 kubectl  get pod
 NAME                    READY   STATUS    RESTARTS   AGE
 httpd-7db5849b8-cpw5m   1/1     Running   0          6m
 httpod                  1/1     Running   0          5m36s
-
-
-
-
 
