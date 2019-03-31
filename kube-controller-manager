@@ -1,6 +1,6 @@
 master01
 
-cd /opt/k8s
+cd /root/cert/
 
 cat > kube-controller-manager-csr.json <<EOF
 {
@@ -139,23 +139,11 @@ metadata:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+kubectl get componentstatuses
+NAME                 STATUS      MESSAGE                                                                                     ERROR
+scheduler            Unhealthy   Get http://127.0.0.1:10251/healthz: dial tcp 127.0.0.1:10251: connect: connection refused   
+controller-manager   Healthy     ok                                                                                          
+etcd-0               Healthy     {"health":"true"}           
 
 
 

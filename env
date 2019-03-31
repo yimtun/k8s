@@ -118,7 +118,7 @@ grep SELINUX=disabled  /etc/selinux/config
 
 yum -y install ntpdate
 
-
+yum -y install epel-release
 yum install -y conntrack ipvsadm ipset jq sysstat curl iptables libseccomp
 
 
