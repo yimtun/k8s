@@ -48,12 +48,6 @@ EOF
 
 
 
-node01 node02
-docker pull  nginx
-
-
-
-
 
 
 master01

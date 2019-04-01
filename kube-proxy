@@ -1,11 +1,10 @@
-node01  node02
-
-scp 192.168.10.232:/opt/k8s/bin/kube-proxy   /opt/k8s/bin/
+scp  /opt/k8s/bin/kube-proxy   root@node01:/opt/k8s/bin/
+scp  /opt/k8s/bin/kube-proxy   root@node02:/opt/k8s/bin/
 
 
 master01
 
-cd /opt/k8s
+cd /root/cert/
 
 
 cat > kube-proxy-csr.json <<EOF

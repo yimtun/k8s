@@ -1,6 +1,40 @@
+master01
+
+ssh-keygen -t rsa -P ""  -f /root/.ssh/id_rsa
+ssh-copy-id root@node01
+ssh-copy-id root@node02
+
+
+
+
+ssh root@node01  'useradd -m k8s'
+ssh root@node01   "sh -c 'echo 123456 | passwd k8s --stdin'"
+
+ssh root@node01 'mkdir -p /opt/k8s/bin'
+ssh root@node01 'mkdir -p /etc/kubernetes/cert'
+
+ssh root@node01 'chown -R k8s /opt/k8s'
+ssh root@node01 'chown -R k8s /etc/kubernetes'
+
+
+ssh root@node02  'useradd -m k8s'
+ssh root@node02   "sh -c 'echo 123456 | passwd k8s --stdin'"
+
+ssh root@node02 'mkdir -p /opt/k8s/bin'
+ssh root@node02 'mkdir -p /etc/kubernetes/cert'
+
+ssh root@node02 'chown -R k8s /opt/k8s'
+ssh root@node02 'chown -R k8s /etc/kubernetes'
+
+
+
+ssh root@node01   'echo "export PATH=/opt/k8s/bin:$PATH" >> /root/.bashrc'
+ssh root@node02   'echo "export PATH=/opt/k8s/bin:$PATH" >> /root/.bashrc'
+
+
+
 useradd -m k8s 
 sh -c 'echo 123456 | passwd k8s --stdin'
-
 
 mkdir -p /opt/k8s/bin
 chown -R k8s /opt/k8s
@@ -8,14 +42,21 @@ chown -R k8s /opt/k8s
 mkdir -p /etc/kubernetes/cert
 chown -R k8s /etc/kubernetes
 
-master only:
+
 mkdir -p /etc/etcd/cert
 chown -R k8s /etc/etcd/cert
 mkdir -p /var/lib/etcd && chown -R k8s /etc/etcd/cert
 
 
 
+
+path 前添加 新的path
+
 sh -c "echo 'export PATH=/opt/k8s/bin:$PATH' >> ~/.bashrc"
+#source <(kubectl completion bash)
+
+
+
 source ~/.bashrc
 
 cfssl  install 
@@ -47,8 +88,12 @@ ll /opt/k8s/bin/cfssl*
 
 创建根证书
 
+mkdir /root/cert
+
+cd /root/cert
 pwd
-/opt/k8s
+/root/cert
+
 
 
 cat > ca-config.json <<EOF
@@ -104,19 +149,21 @@ cfssl gencert -initca ca-csr.json | cfssljson -bare ca -
 将生成的 CA 证书、秘钥文件、配置文件拷贝到所有master节点和node节点的 /etc/kubernetes/cert 目录下
 并保证k8s用户有读写 /etc/kubernetes 目录及其子目录文件的权限：
 
-cd /opt/k8s
-scp ca*.pem ca-config.json 192.168.10.243:/etc/kubernetes/cert/
-scp ca*.pem ca-config.json 192.168.10.242:/etc/kubernetes/cert/
+scp /root/cert/ca*.pem  /root/cert/ca-config.json node01:/etc/kubernetes/cert/
+scp /root/cert/ca*.pem  /root/cert/ca-config.json node02:/etc/kubernetes/cert/
+ssh root@node01 'chown -R k8s /etc/kubernetes'
+ssh root@node02 'chown -R k8s /etc/kubernetes'
 
-cd /opt/k8s/
 
-cp ca*.pem ca-config.json /etc/kubernetes/cert/
+
+cp /root/cert/ca*.pem /root/cert/ca-config.json /etc/kubernetes/cert/
 chown -R k8s /etc/kubernetes
 
 
 
 下载和分发 kubectl 二进制文件
 
+cd /opt/k8s-v1.12.0-rc.2/
 
 tar xzvf kubernetes-client-linux-amd64.tar.gz
 cp kubernetes/client/bin/kubectl /opt/k8s/bin/
@@ -145,7 +192,7 @@ ll  /opt/k8s/bin/k*
 
 创建 admin 证书和私钥
 
-cd /opt/k8s/
+cd /root/cert
 
 cat > admin-csr.json <<EOF
 {
@@ -178,7 +225,7 @@ cfssl gencert -ca=/etc/kubernetes/cert/ca.pem \
 
 
 
-cd /opt/k8s/
+cd /root/cert
 
 ls admin*
 admin.csr  admin-csr.json  admin-key.pem  admin.pem
@@ -188,7 +235,8 @@ admin.csr  admin-csr.json  admin-key.pem  admin.pem
 
 master01运行
 
-cd /opt/k8s
+
+cd /root/cert
 
 export MASTER_VIP=192.168.10.232
 export KUBE_APISERVER="https://${MASTER_VIP}:6443"
@@ -202,7 +250,7 @@ kubectl config set-cluster kubernetes \
   --kubeconfig=kubectl.kubeconfig
 
 
-grep name  /opt/k8s/kubectl.kubeconfig 
+grep name  /root/cert/kubectl.kubeconfig 
   name: kubernetes
 
 
@@ -217,7 +265,7 @@ kubectl config set-credentials admin \
   --kubeconfig=kubectl.kubeconfig
 
 
-grep name  /opt/k8s/kubectl.kubeconfig 
+grep name  /root/cert/kubectl.kubeconfig 
   name: kubernetes
 - name: admin
 
@@ -254,7 +302,7 @@ cp etcd-v3.3.7-linux-amd64/etcd* /opt/k8s/bin/
 
 创建 etcd 证书和私钥
 
-cd /opt/k8s/
+cd /root/cert/
 
 
 cat > etcd-csr.json <<EOF
@@ -286,7 +334,7 @@ EOF
 cfssl gencert -ca=/etc/kubernetes/cert/ca.pem \
     -ca-key=/etc/kubernetes/cert/ca-key.pem \
     -config=/etc/kubernetes/cert/ca-config.json \
-    -profile=kubernetes /opt/k8s/etcd-csr.json | cfssljson -bare etcd
+    -profile=kubernetes /root/cert/etcd-csr.json | cfssljson -bare etcd
 
 
 
@@ -351,7 +399,6 @@ export NODE_IP=192.168.10.232
 sed -i -e "s/##NODE_NAME##/${NODE_NAME}/" -e "s/##NODE_IP##/${NODE_IP}/" /usr/lib/systemd/system/etcd.service
 
 
-mkdir -p /var/lib/etcd && chown -R k8s /var/lib/etcd
 
 
 
@@ -394,6 +441,7 @@ WantedBy=multi-user.target
 EOF
 
 
+mkdir -p /var/lib/etcd && chown -R k8s /var/lib/etcd
 
 systemctl daemon-reload && systemctl enable etcd && systemctl restart etcd
 
@@ -414,14 +462,19 @@ ETCDCTL_API=3 etcdctl \
 
 flannel  all   master01  node02  node02
 
+cd opt
+
 wget https://github.com/coreos/flannel/releases/download/v0.11.0/flannel-v0.11.0-linux-amd64.tar.gz
 
 tar xvf flannel-v0.11.0-linux-amd64.tar.gz
 cp flanneld /opt/k8s/bin/
 cp mk-docker-opts.sh   /opt/k8s/bin/
 
+scp flanneld mk-docker-opts.sh root@node01:/opt/k8s/bin/
+scp flanneld mk-docker-opts.sh root@node02:/opt/k8s/bin/
 
-cd /opt/k8s
+
+cd /root/cert
 
 
 cat > flanneld-csr.json <<EOF
@@ -457,28 +510,21 @@ cfssl gencert -ca=/etc/kubernetes/cert/ca.pem \
 ls flanneld*pem
 将生成的证书和私钥分发到所有节点（master01,node01 和 node02）：
 
+ssh root@node01 'mkdir -p /etc/flanneld/cert/'
+ssh root@node02 'mkdir -p /etc/flanneld/cert/'
+
+scp flanneld*.pem root@node01:/etc/flanneld/cert
+scp flanneld*.pem root@node02:/etc/flanneld/cert
+
+ssh root@node01 'chown  -R k8s /etc/flanneld/cert/'
+ssh root@node02 'chown  -R k8s /etc/flanneld/cert/'
+
+
 mkdir -p /etc/flanneld/cert/
-chown  -R k8s /etc/flanneld/cert/
-
-
-node01 node02 
-useradd -m k8s
-sh -c 'echo 123456 | passwd k8s --stdin'
-mkdir -p /opt/k8s/bin
-chown -R k8s /opt/k8s
-mkdir -p /etc/kubernetes/cert
-chown -R k8s /etc/kubernetes
-mkdir -p /etc/flanneld/cert/
-chown  -R k8s /etc/flanneld/cert/
-sh -c "echo 'export PATH=/opt/k8s/bin:$PATH' >> ~/.bashrc"
-source ~/.bashrc
-
-
-
-
 cp flanneld*.pem /etc/flanneld/cert
-scp flanneld*.pem k8s@192.168.10.242:/etc/flanneld/cert
-scp flanneld*.pem k8s@192.168.10.243:/etc/flanneld/cert
+chown  -R k8s /etc/flanneld/cert/
+
+
 
 
 
@@ -552,10 +598,6 @@ EOF
 
 
 cp  flanneld.service  /usr/lib/systemd/system/
-
-scp  master01:/opt/k8s/bin/flanneld    /opt/k8s/bin/
-scp master01:/opt/k8s/bin/mk-docker-opts.sh  /opt/k8s/bin/
-
 
 systemctl daemon-reload && systemctl enable flanneld && systemctl restart flanneld
 systemctl status flanneld
