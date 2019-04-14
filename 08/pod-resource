@@ -1,0 +1,62 @@
+--wait=false
+
+pending 状态  api server接受 放入  etcd 调度器  待调度 调度中的一个状态
+
+envent  
+
+
+kubectl get pod requestpod -0 json | jq . status
+
+kubectl get pod nginx -o json | jq  . satus
+jq: error: Could not open file satus: No such file or directory
+
+
+request  保底量  按比例进行切分  决定调度   调度成功后  有压力的时候才按照比例进行分配
+
+kubectl create -f resource.yml
+
+
+
+
+limits
+
+kubectl delete -f   2000.yml
+
+kubectl get pod
+
+
+watch  -w 退出?  ctrl + c
+
+kubectl get pod -w
+
+等待资源调度  pending  ->  container Creating   
+
+
+kubectl  describe  node   192.168.10.243
+
+docker stats --no-stream
+
+
+
+清理下环境
+
+kubectl   delete  pod httpod --wait=false
+pod "httpod" deleted
+
+kubectl  describe  nodes 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
