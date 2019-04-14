@@ -1,0 +1,9 @@
+存量的pod 是否受影响
+
+pod info  ?
+
+
+https://kubernetes.io/docs/tasks/inject-data-application/downward-api-volume-expose-pod-information/#capabilities-of-the-downward-api
+
+
+

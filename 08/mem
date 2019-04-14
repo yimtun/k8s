@@ -1,0 +1,13 @@
+内存的限制
+
+cpu 资源是可压缩资源
+
+内存不是可压缩资源
+
+kubectl  describe  nodes 
+
+宿主机上 
+/var/log/message  查看 OOM 相关日志
+
+
+

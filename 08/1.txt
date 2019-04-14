@@ -1,0 +1,17 @@
+heapstar/heapster-1.6.0-beta.1/deploy/kube-config/influxdb
+
+
+kubectl  apply -f heapster.yaml
+
+
+
+&insecure=true
+
+
+CRD   扩展的  resource 
+
+docker pull progrium/stress
+
+
+
+
