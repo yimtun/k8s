@@ -1,0 +1,107 @@
+kubectl create namespace default-mem-example
+
+
+
+cat > memory-limitRange-defaults.yaml << EOF
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: mem-limit-range
+  namespace: default-cpu-example
+spec:
+  limits:
+  - default:
+      memory: 512Mi
+    defaultRequest:
+      memory: 256Mi
+    type: Container
+EOF
+
+
+kubectl apply -f  memory-limitRange-defaults.yaml --namespace=constraints-cpu-example
+
+
+
+kubectl create -f cpu-range.yaml
+
+kubectl get limitranges -n default-cpu-example 
+
+
+
+kubectl delete pod pod-name
+
+
+
+kubectl  get pod -n default-cpu-example -o wide
+
+
+
+kubectl  describe node  192.168.10.242
+
+生产image pull 策略 ？
+
+
+kubectl delete pod -n default-cpu-example  --all
+--all 会删除  NS
+
+
+修改后   yaml 生效      apply 
+
+kubectl get pod -owide constraints-cpu-example
+
+
+apiversion
+kind       object
+metedata  object 原信息
+spec  container 描述信息
+
+数组  横线
+
+
+1. 如果容器没有指定 requests 和 limits, 将使用默认的资源进行分配
+2. 验证容器是否指定了大于或等于min.cpu 的CPU请求限制
+3. 验证容器是否指定了小于或等于max.cpu 的CPU请求限制
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

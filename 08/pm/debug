@@ -1,0 +1,108 @@
+yum -y install strace
+
+strace kubectl  get pod
+
+
+qos 在网络上也有
+
+kubeadm  config images list
+I0414 13:56:55.571197    5984 version.go:89] could not fetch a Kubernetes version from the internet: unable to get URL "https://dl.k8s.io/release/stable-1.txt": Get https://dl.k8s.io/release/stable-1.txt: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+I0414 13:56:55.571620    5984 version.go:94] falling back to the local client version: v1.12.0-rc.2
+k8s.gcr.io/kube-apiserver:v1.12.0-rc.2
+k8s.gcr.io/kube-controller-manager:v1.12.0-rc.2
+k8s.gcr.io/kube-scheduler:v1.12.0-rc.2
+k8s.gcr.io/kube-proxy:v1.12.0-rc.2
+k8s.gcr.io/pause:3.1
+k8s.gcr.io/etcd:3.2.24
+k8s.gcr.io/coredns:1.2.2
+
+
+
+export BOOTSTRAP_TOKEN=$(kubeadm token create \
+>       --description kubelet-bootstrap-token \
+>       --groups system:bootstrappers:${node_name} \
+>       --kubeconfig ~/.kube/config -v 8)
+I0414 15:02:44.671940    6358 token.go:115] [token] validating mixed arguments
+I0414 15:02:44.672274    6358 token.go:122] [token] getting Clientsets from KubeConfig file
+I0414 15:02:44.678509    6358 loader.go:359] Config loaded from file /root/.kube/config
+I0414 15:02:44.682988    6358 token.go:219] [token] loading configurations
+I0414 15:02:44.684052    6358 interface.go:384] Looking for default routes with IPv4 addresses
+I0414 15:02:44.684101    6358 interface.go:389] Default route transits interface "eth0"
+I0414 15:02:44.684592    6358 interface.go:196] Interface eth0 is up
+I0414 15:02:44.684723    6358 interface.go:244] Interface "eth0" has 1 addresses :[192.168.10.232/24].
+I0414 15:02:44.684788    6358 interface.go:211] Checking addr  192.168.10.232/24.
+I0414 15:02:44.684823    6358 interface.go:218] IP found 192.168.10.232
+I0414 15:02:44.684894    6358 interface.go:250] Found valid IPv4 address 192.168.10.232 for interface "eth0".
+I0414 15:02:44.684915    6358 interface.go:395] Found active IP 192.168.10.232 
+I0414 15:02:44.685106    6358 version.go:156] fetching Kubernetes version from URL: https://dl.k8s.io/release/stable-1.txt
+I0414 15:02:54.685745    6358 version.go:89] could not fetch a Kubernetes version from the internet: unable to get URL "https://dl.k8s.io/release/stable-1.txt": Get https://dl.k8s.io/release/stable-1.txt: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+I0414 15:02:54.685970    6358 version.go:94] falling back to the local client version: v1.12.0-rc.2
+I0414 15:02:54.686840    6358 feature_gate.go:206] feature gates: &{map[]}
+bootstrapTokens.0.groups: Invalid value: []string{"system:bootstrappers:"}: bootstrap group "system:bootstrappers:" is invalid (must match \Asystem:bootstrappers:[a-z0-9:-]{0,255}[a-z0-9]\z)
+
+
+
+
+
+
+
+
+https://blog.csdn.net/bbwangj/article/details/85017765
+
+kubeadm config images list
+
+kubeadm config images list
+I0414 15:04:48.711348    6368 version.go:89] could not fetch a Kubernetes version from the internet: unable to get URL "https://dl.k8s.io/release/stable-1.txt": Get https://dl.k8s.io/release/stable-1.txt: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+I0414 15:04:48.711748    6368 version.go:94] falling back to the local client version: v1.12.0-rc.2
+k8s.gcr.io/kube-apiserver:v1.12.0-rc.2
+k8s.gcr.io/kube-controller-manager:v1.12.0-rc.2
+k8s.gcr.io/kube-scheduler:v1.12.0-rc.2
+k8s.gcr.io/kube-proxy:v1.12.0-rc.2
+k8s.gcr.io/pause:3.1
+k8s.gcr.io/etcd:3.2.24
+k8s.gcr.io/coredns:1.2.2
+
+
+
+cat /root/.kube/config
+
+
+journalctl  -r -xu  kube-apiserver
+
+
+
+
+nodes
+
+kubeadm config images list |sed -e 's/^/docker pull /g' -e 's#k8s.gcr.io#docker.io/mirrorgooglecontainers#g' |sh -x 
+
+下载需要的镜像
+
+
+
+docker images |grep mirrorgooglecontainers |awk '{print "docker tag ",$1":"$2,$1":"$2}' |sed -e 's#mirrorgooglecontainers#k8s.gcr.io#2' |sh -x  
+
+重命名镜像
+
+
+docker images |grep mirrorgooglecontainers |awk '{print "docker rmi ", $1":"$2}' |sh -x 
+
+删除mirrorgooglecontainers镜像
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
