@@ -1,0 +1,58 @@
+kube-proxy  做成 ds
+
+kubect -n test get ds
+
+kubectlabel node xx xxx  la-
+
+
+desired  0   匹配到label 就会变成1  DESIRED  1
+
+
+kubectl get nodes --show-labels
+
+查看k8s label
+
+
+
+
+mkdr /ds
+cd /ds
+
+
+cat > ssd-monitor-daemonset.yaml  << EOF
+apiVersion: apps/v1beta2
+kind: DaemonSet
+metadata:
+  name: ssd-monitor
+spec:
+  selector:
+    matchLabels:
+      app: ssd-monitor
+  template:
+    metadata:
+      labels:
+        app: ssd-monitor
+    spec:
+      nodeSelector:
+        k8s.51reboot.com/disk: ssd
+      containers:
+      - name: main
+        image: luksa/ssd-monitor
+        imagePullPolicy: IfNotPresent
+EOF
+
+
+kubectl -n test create -f ssd-monitor-daemonset.yaml
+
+
+kubectl  -n test get ds -owide
+
+
+spec.spec.nodeSelector 
+
+
+设置不可调度
+
+kubectl cordon 192.168.10.
+
+重新创建 ds

@@ -1,0 +1,351 @@
+pause pod
+
+init pod
+
+
+
+workload（工作负载类）：
+POD
+Controllers（控制器），诸如Deployment
+DaemonSet、Job、StatefulSet
+
+
+bare pod
+
+
+rc -  rs
+
+
+mkdir /rc
+cd /rc
+
+kubectl  create namespace  test
+
+
+cat > kubia-rc.yaml  << EOF
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: kubia
+spec:
+  replicas: 2
+  selector:
+    app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia
+        image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+EOF
+
+kubectl  -n test  create  -f kubia-rc.yaml 
+
+
+kubectl  -n test  create  -f kubia-rc.yaml 
+replicationcontroller/kubia created
+
+
+kubectl    -n test get all
+NAME              READY   STATUS    RESTARTS   AGE
+pod/kubia-r2nhs   1/1     Running   0          2m33s
+pod/kubia-rvw5w   1/1     Running   0          2m33s
+
+NAME                          DESIRED   CURRENT   READY   AGE
+replicationcontroller/kubia   2         2         2       2m33s
+
+
+
+kubectl  -n test get  rc kubia  -o yaml  > kubia-rs.yaml
+
+
+vim  kubia-rs.yaml
+
+
+apiVersion:  apps/v1beta2
+kind: ReplicaSet
+
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kubia
+
+
+
+kubectl  -n test create -f kubia-rs.yaml  --dry-run 
+replicaset.apps/kubia created (dry run)
+
+kubectl  -n test create -f kubia-rs.yaml  
+replicaset.apps/kubia created
+
+
+kubectl  -n test delete rc  kubia   --cascade=false
+replicationcontroller "kubia" deleted
+
+
+总结 按照以上rs 替换rc 的步骤  rs 会重新创建 pod  并不会接管当前 rc 的 pod
+
+如果 先  删除 rc   不删除 pod 再 创建 rs 呢?
+
+
+
+
+ex1
+
+1创建rc  2 创建  rs  3 删除 rc --  不删除pod 
+
+
+
+ex2
+
+1修改 rs 添加选择表达式 
+
+
+
+
+
+matchLabels   变成  matchExpressions 
+
+vim kubia-rs.yaml
+
+spec:
+  replicas: 2
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+         - kubia
+         - foo
+
+
+kubectl  -n test get pod -l app=kubia --show-labels
+NAME          READY   STATUS    RESTARTS   AGE   LABELS
+kubia-r2nhs   1/1     Running   0          67m   app=kubia
+kubia-rvw5w   1/1     Running   0          67m   app=kubia
+
+kubectl -n test delete pod  xxx  --wait=false
+
+
+
+清理环境  删除rs  不删除 pod
+
+kubectl  -n test  delete rs kubia   --cascade=false
+
+
+pod 已然存在
+
+kubectl  -n test  get pod
+NAME          READY   STATUS    RESTARTS   AGE
+kubia-r2nhs   1/1     Running   0          73m
+kubia-rvw5w   1/1     Running   0          73m
+
+
+
+matchLabels   变成  matchExpressions
+
+vim kubia-rs.yaml
+
+spec:
+  replicas: 2
+  selector:
+    matchExpressions:
+      - key: app 
+        operator: In
+        values:
+         - kubia
+         - foo 
+
+
+
+kubectl  -n test  create  -f kubia-rs.yaml  --dry-run 
+replicaset.apps/kubia created (dry run)
+
+
+kubectl  -n test  create  -f kubia-rs.yaml 
+replicaset.apps/kubia created
+
+
+kubectl  -n test get pod -l app=kubia --show-labels 
+NAME          READY   STATUS    RESTARTS   AGE   LABELS
+kubia-r2nhs   1/1     Running   0          78m   app=kubia
+kubia-rvw5w   1/1     Running   0          78m   app=kubia
+
+
+
+删除一个pod 
+
+kubectl  -n test delete pod kubia-rvw5w --wait=false
+pod "kubia-rvw5w" deleted
+
+
+
+rs 接管了 pod 对象  创建新的 pod
+
+
+给 pod 打上标签  如果是rc   给pod 打上标签就会脱离接管
+
+
+kubectl  -n test  describe  rs kubia 
+Name:         kubia
+Namespace:    test
+Selector:     app in (foo,kubia)
+Labels:       app=kubia
+Annotations:  <none>
+Replicas:     2 current / 2 desired
+Pods Status:  2 Running / 0 Waiting / 0 Succeeded / 0 Failed
+Pod Template:
+  Labels:  app=kubia
+  Containers:
+   kubia:
+    Image:        luksa/kubia
+    Port:         8080/TCP
+    Host Port:    0/TCP
+    Environment:  <none>
+    Mounts:       <none>
+  Volumes:        <none>
+Events:
+  Type    Reason            Age    From                   Message
+  ----    ------            ----   ----                   -------
+  Normal  SuccessfulCreate  3m21s  replicaset-controller  Created pod: kubia-9qhvq
+
+
+
+kubectl  -n test get pod --show-labels 
+NAME          READY   STATUS    RESTARTS   AGE     LABELS
+kubia-9qhvq   1/1     Running   0          4m35s   app=kubia
+kubia-r2nhs   1/1     Running   0          84m     app=kubia
+
+
+kubectl  -n test label pod kubia-r2nhs  app=foo --overwrite 
+pod/kubia-r2nhs labeled
+
+
+kubectl  -n test get pod   --show-labels 
+NAME          READY   STATUS    RESTARTS   AGE     LABELS
+kubia-9qhvq   1/1     Running   0          9m37s   app=kubia
+kubia-r2nhs   1/1     Running   0          89m     app=foo
+
+
+
+检测标签为 foo 的 pod是否被rs  托管
+
+kubectl  -n test delete pod kubia-r2nhs 
+pod "kubia-r2nhs" deleted
+
+
+kubectl  -n test get pod   --show-labels 
+NAME          READY   STATUS    RESTARTS   AGE   LABELS
+kubia-9qhvq   1/1     Running   0          12m   app=kubia
+kubia-fqzld   1/1     Running   0          48s   app=kubia
+
+
+新创建了pod  标签是  rs 最初的的标签  是template  定义的标签 
+
+
+template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: kubia
+    spec:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+kubetl get rc  >  yaml
+
+create  rs
+
+
+
+matchlables   api server     kindname
+
+--dry-run
+
+
+kubectl delete rv kubia --cacade-false
+
+kube get rc
+
+
+
+kubect l get pod -l app=kubia --show-labels
+
+
+kubectl label podxxxxx   app=foo --overwrite
+
+kubectl get pod -l app=foo -p app=kubia  --show-labels
+
+
+
+
+
+

@@ -1,0 +1,157 @@
+docker stats 44ab452b4
+
+
+kubectl create namespace test
+
+
+cat << EOF > pod-resource-qos-explame.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: requests-pod
+spec:
+  containers:
+  - name: main
+    image: busybox
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 200m
+        memory: "10Mi"
+    command: ["dd","if=/dev/zero","of=/dev/null"]
+EOF
+
+
+kubectl -n test create -f pod-resource-qos-explame.yaml
+
+
+
+kubectl  -n test get all -o wide
+NAME               READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+pod/requests-pod   1/1     Running   0          18s   172.30.48.5   192.168.10.242   <none>
+
+docker ps | grep requests-pod
+09177cf9dadc        af2f74c517aa                                                 "dd if=/dev/zero of=…"   About a minute ago   Up About a minute                       k8s_main_requests-pod_test_f8928b73-637e-11e9-996d-5254003d139c_0
+b78ca3ad1a71        registry.access.redhat.com/rhel7/pod-infrastructure:latest   "/usr/bin/pod"           About a minute ago   Up About a minute                       k8s_POD_requests-pod_test_f8928b73-637e-11e9-996d-5254003d139c_0
+
+
+
+docker stats 09177cf9dadc  --no-stream
+CONTAINER ID        NAME                                                                CPU %               MEM USAGE / LIMIT   MEM %               NET I/O            BLOCK I/O           PIDS
+09177cf9dadc        k8s_main_requests-pod_test_f8928b73-637e-11e9-996d-5254003d139c_0   101.77%             864KiB / 7.638GiB   0.01%               0B / 0B            1.15MB / 0B         1
+
+
+
+
+
+
+
+
+
+top
+1
+
+跑满了一个CPU
+
+
+
+requests  无法限制使用的上限
+
+kubectl delete namespace test
+
+
+ex 2   在指定的同一个node  创建3个pod   request CPU  分别是 1核 1核  2核
+
+
+kubect create  namespace test
+
+docker pull progrium/stress
+
+节点选择器 在指定节点创建pod
+
+
+cat << EOF > pod-request-stress.yaml
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: requests-pod-2000
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.243
+  containers:
+  - name: main
+    image: progrium/stress
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 2000m
+        memory: "10Mi"
+    command: ["stress","-c","4"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: requests-pod-1000
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.243
+  containers:
+  - name: main
+    image: progrium/stress
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 1000m
+        memory: "10Mi"
+    command: ["stress","-c","4"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: requests-pod-3000
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.243
+  containers:
+  - name: main
+    image: progrium/stress
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 1000m
+        memory: "10Mi"
+    command: ["stress","-c","4"]
+EOF
+
+
+kubectl -n test create -f pod-request-stress.yaml
+
+
+
+top -d 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
