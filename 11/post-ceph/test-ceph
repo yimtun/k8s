@@ -1,0 +1,181 @@
+scp  172.16.99.1:/etc/ceph/ceph.conf  /etc/ceph/
+
+scp  172.16.99.1:/etc/ceph/ceph.client.admin.keyring   /etc/ceph/
+
+
+grep key /etc/ceph/ceph.client.admin.keyring |awk '{printf "%s", $NF}'|base64
+QVFBYjVlTmNKenk2RnhBQThCM2EwRDNtSThGR0NWT0dGamF4ZHc9PQ==
+
+
+cat > ceph-secret.yaml << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ceph-admin-secret
+type: "kubernetes.io/rbd"
+data:
+  key: QVFBYjVlTmNKenk2RnhBQThCM2EwRDNtSThGR0NWT0dGamF4ZHc9PQ==
+EOF
+
+kubectl  create -f ceph-secret.yaml
+
+
+
+
+101.32
+kubectl  get secrets  ceph-admin-secret  -o yaml
+apiVersion: v1
+data:
+  key: QVFCejI5ZGM2RGY3RHhBQWhUNmJ6NkxjVkRlczYxTHNLYnBtbkE9PQ==
+kind: Secret
+metadata:
+  creationTimestamp: 2019-05-19T04:16:18Z
+  name: ceph-admin-secret
+  namespace: default
+  resourceVersion: "2969594"
+  selfLink: /api/v1/namespaces/default/secrets/ceph-admin-secret
+  uid: d99fd5f5-79ec-11e9-9cf2-5254003d139c
+type: kubernetes.io/rbd
+
+
+
+rbd feature disable bmw/ceph-image object-map fast-diff deep-flatten
+
+
+
+redo 
+kubectl  delete pvc ceph-claim
+kubectl  delete pv ceph-pv
+rm -rf /etc/ceph/*
+kubectl  delete secret ceph-admin-secret
+
+
+
+ceph auth get-key client.bmw
+AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww==[root@ceph-mon01 ceph]# 
+
+
+echo -n 'AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww==' | base64
+
+echo -n 'AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww==' | base64
+QVFEUzVlTmNJWFp4QUJBQXNIMTBIMHhvV25yQVhQcU55VFA3V3c9PQ==
+
+
+
+
+cat > ceph-secret.yaml << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ceph-bmw-secret
+type: "kubernetes.io/rbd"
+data:
+  key: QVFEUzVlTmNJWFp4QUJBQXNIMTBIMHhvV25yQVhQcU55VFA3V3c9PQ==
+EOF
+
+kubectl  create -f ceph-secret.yaml
+
+
+
+
+[root@master01 ~]# cat pv.yaml 
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ceph-pv
+spec:
+  capacity:
+    storage: 20Mi
+  accessModes:
+    - ReadWriteOnce
+  rbd:
+    monitors:
+      - 172.16.99.1:6789
+    pool: bmw
+    image: ceph-image
+    user: bmw
+    secretRef:
+      name: ceph-bmw-secret
+    fsType: ext4
+    readOnly: false
+  persistentVolumeReclaimPolicy: Recycle
+
+
+kubectl  create -f pv.yaml 
+persistentvolume/ceph-pv created
+[root@master01 ~]# kubectl get pv
+NAME      CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   REASON   AGE
+ceph-pv   20Mi       RWO            Recycle          Available        
+
+
+ cat pvc.yaml 
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: ceph-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Mi
+[root@master01 ~]# kubectl create -f pvc.yaml 
+persistentvolumeclaim/ceph-claim created
+
+
+
+kubectl  get pv,pvc
+NAME                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                STORAGECLASS   REASON   AGE
+persistentvolume/ceph-pv   20Mi       RWO            Recycle          Bound    default/ceph-claim                           53s
+
+NAME                               STATUS   VOLUME    CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+persistentvolumeclaim/ceph-claim   Bound    ceph-pv   20Mi       RWO                           19s
+
+
+
+
+
+
+
+
+cat nginx-static-pv-test.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-static-pv-test
+spec:
+  containers:
+  - name: nginx
+    image: nginx:latest
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - name: nginx-static-pv-test
+        mountPath: /data/
+        readOnly: false
+  volumes:
+  - name: nginx-static-pv-test
+    persistentVolumeClaim:
+      claimName: ceph-claim
+[root@master01 ~]# kubectl  create   -f  nginx-static-pv-test.yaml 
+pod/nginx-static-pv-test created
+[root@master01 ~]# kubectl  get pod
+NAME                       READY   STATUS    RESTARTS   AGE
+httpd-7db5849b8-4h45l      1/1     Running   7          51d
+my-nginx-c56566c77-kzqdg   1/1     Running   5          51d
+my-nginx-c56566c77-trxbh   1/1     Running   5          51d
+nginx                      1/1     Running   5          51d
+nginx-75d67854df-9d6qx     1/1     Running   7          51d
+nginx-75d67854df-b86jh     1/1     Running   6          51d
+nginx-static-pv-test       1/1     Running   0          25s
+
+
+
+
+kubectl exec nginx-static-pv-test mount|grep rbd
+/dev/rbd0 on /data type ext4 (rw,relatime,stripe=4096,data=ordered)
+
+
+
+
+
+

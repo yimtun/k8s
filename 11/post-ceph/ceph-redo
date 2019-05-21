@@ -1,0 +1,19 @@
+ceph-deploy purge ceph-mon01 
+
+
+ceph-deploy purgedata ceph-mon01 
+
+ceph-deploy forgetkeys
+
+rm -rf /etc/ceph/*
+rm -rf /var/lib/ceph/*/*
+rm -rf /var/log/ceph/*
+rm -rf /var/run/ceph/*
+rm -rf /cephcluster/*
+
+
+lvremove  -y  /dev/mapper/ceph-*
+
+vgremove `vgs |  grep ceph | cut -d ' ' -f 3`
+
+pvremove   /dev/vdb

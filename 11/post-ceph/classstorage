@@ -1,0 +1,242 @@
+cat >storageclass-ceph-rdb.yaml<<EOF
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: dynamic-ceph-rdb-1
+provisioner: kubernetes.io/rbd
+parameters:
+  monitors: 172.16.99.1:6789
+  adminId: bmw
+  adminSecretName: bmw-secret-777
+  # adminSecretNamespace: kube-system
+  pool: bmw
+  userId: bmw
+  userSecretName: bmw-secret-777
+  fsType: ext4
+  imageFormat: "2"
+  imageFeatures: "layering"
+EOF
+
+kubectl  create -f storageclass-ceph-rdb.yaml 
+
+
+
+kubectl  get pvc
+NAME                   STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS       AGE
+ceph-claim             Bound    ceph-pv                                    20Mi       RWO                               2d10h
+ceph-claim-777         Bound    ceph-pv-777                                20Mi       RWO                               10m
+ceph-rdb-claim         Bound    pvc-8eda4990-79ff-11e9-9cf2-5254003d139c   2Mi        RWO            dynamic-ceph-rdb   2d8h
+ceph-static-pv-claim   Bound    ceph-static-test                           20Mi       RWO                               157m
+www-web-sts-0          Bound    pvc-d4fb6abd-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            dynamic-ceph-rdb   2d8h
+www-web-sts-1          Bound    pvc-d74ac9e5-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            dynamic-ceph-rdb   2d8h
+
+
+
+cat >ceph-rdb-pvc-test.yaml<<EOF
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: ceph-rdb-claim-1
+spec:
+  accessModes:     
+    - ReadWriteOnce
+  storageClassName: dynamic-ceph-rdb-1
+  resources:
+    requests:
+      storage: 2Mi
+EOF
+
+
+
+
+
+kubectl   create -f ceph-rdb-pvc-test.yaml 
+persistentvolumeclaim/ceph-rdb-claim-1 created
+[root@master01 ~]# kubectl  get pvc
+NAME                   STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS         AGE
+ceph-claim             Bound    ceph-pv                                    20Mi       RWO                                 2d10h
+ceph-claim-777         Bound    ceph-pv-777                                20Mi       RWO                                 10m
+ceph-rdb-claim         Bound    pvc-8eda4990-79ff-11e9-9cf2-5254003d139c   2Mi        RWO            dynamic-ceph-rdb     2d8h
+ceph-rdb-claim-1       Bound    pvc-40fa6ca1-7bdc-11e9-9cf2-5254003d139c   2Mi        RWO            dynamic-ceph-rdb-1   3s
+ceph-static-pv-claim   Bound    ceph-static-test                           20Mi       RWO                                 157m
+www-web-sts-0          Bound    pvc-d4fb6abd-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            dynamic-ceph-rdb     2d8h
+www-web-sts-1          Bound    pvc-d74ac9e5-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            dynamic-ceph-rdb     2d8h
+
+
+
+kubectl  get pv | grep pvc-40fa6ca1-7bdc-11e9-9cf2-5254003d139c
+pvc-40fa6ca1-7bdc-11e9-9cf2-5254003d139c   2Mi        RWO            Delete           Bound    default/ceph-rdb-claim-1       dynamic-ceph-rdb-1            48s
+
+
+
+ceph-mon01
+
+rbd ls bmw 
+ceph-image
+ceph-image-777
+ceph-k8s
+ceph-static-pv-test
+kubernetes-dynamic-pvc-40fdd02f-7bdc-11e9-862d-5254003d139c
+testimage-bmw
+
+
+
+
+cat > inginx-rbd.yaml  << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-rbd-test-1
+spec:
+  containers:
+  - name: nginx
+    image: nginx:latest
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - name: nginx-rbd
+        mountPath: /data/
+        readOnly: false
+  volumes:
+  - name: nginx-rbd
+    persistentVolumeClaim:
+      claimName: ceph-rdb-claim-1
+EOF
+
+
+
+kubectl  get pv
+NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                          STORAGECLASS         REASON   AGE
+ceph-pv                                    20Mi       RWO            Recycle          Bound    default/ceph-claim                                           2d11h
+ceph-pv-777                                20Mi       RWO            Recycle          Bound    default/ceph-claim-777                                       17m
+ceph-static-test                           20Mi       RWO            Recycle          Bound    default/ceph-static-pv-claim                                 166m
+pvc-40fa6ca1-7bdc-11e9-9cf2-5254003d139c   2Mi        RWO            Delete           Bound    default/ceph-rdb-claim-1       dynamic-ceph-rdb-1            4m31s
+pvc-8eda4990-79ff-11e9-9cf2-5254003d139c   2Mi        RWO            Delete           Bound    default/ceph-rdb-claim         dynamic-ceph-rdb              2d8h
+pvc-d4fb6abd-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            Delete           Bound    default/www-web-sts-0          dynamic-ceph-rdb              2d8h
+pvc-d74ac9e5-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            Delete           Bound    default/www-web-sts-1          dynamic-ceph-rdb              2d8h
+
+
+
+kubectl  create -f inginx-rbd.yaml
+
+
+kubectl  describe pod nginx-rbd-test-1
+
+
+kubectl  get pod
+NAME                       READY   STATUS    RESTARTS   AGE
+limit-pod                  1/1     Running   0          4d
+my-nginx-c56566c77-drv6t   1/1     Running   0          3d
+my-nginx-c56566c77-s67p9   1/1     Running   0          3d
+nginx                      1/1     Running   0          3d
+nginx-rbd-test-1           1/1     Running   0          2m8s
+nginx-static-pv-test       1/1     Running   0          17m
+web-sts-0                  1/1     Running   0          2d8h
+web-sts-1                  1/1     Running   0          2d8h
+
+
+
+
+
+kubectl  exec  -it nginx-rbd-test-1   bash
+root@nginx-rbd-test-1:/# mount |grep rbd
+/dev/rbd2 on /data type ext4 (rw,relatime,stripe=4096,data=ordered)
+
+
+
+
+cat > sts-with-rbd.yaml   << EOF
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: web-sts-777
+spec:
+  serviceName: "nginx-777"
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+          name: web
+        volumeMounts:
+        - name: www
+          mountPath: /usr/share/nginx/html
+  volumeClaimTemplates:
+  - metadata:
+      name: www
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "dynamic-ceph-rdb-1"
+      resources:
+        requests:
+          storage: 50Mi
+EOF
+
+
+
+kubectl  get pod
+NAME                       READY   STATUS    RESTARTS   AGE
+limit-pod                  1/1     Running   0          4d
+my-nginx-c56566c77-drv6t   1/1     Running   0          3d1h
+my-nginx-c56566c77-s67p9   1/1     Running   0          3d
+nginx                      1/1     Running   0          3d1h
+nginx-rbd-test-1           1/1     Running   0          10m
+nginx-static-pv-test       1/1     Running   0          26m
+web-sts-0                  1/1     Running   0          2d8h
+web-sts-1                  1/1     Running   0          2d8h
+[root@node01 ~]# kubectl  create -f sts-with-rbd.yaml
+statefulset.apps/web-sts-777 created
+
+
+
+kubectl  get pod
+NAME                       READY   STATUS    RESTARTS   AGE
+limit-pod                  1/1     Running   0          4d
+my-nginx-c56566c77-drv6t   1/1     Running   0          3d1h
+my-nginx-c56566c77-s67p9   1/1     Running   0          3d
+nginx                      1/1     Running   0          3d1h
+nginx-rbd-test-1           1/1     Running   0          11m
+nginx-static-pv-test       1/1     Running   0          27m
+web-sts-0                  1/1     Running   0          2d8h
+web-sts-1                  1/1     Running   0          2d8h
+web-sts-777-0              1/1     Running   0          54s
+web-sts-777-1              1/1     Running   0          48s
+
+
+rbd ls bmw  
+ceph-image
+ceph-image-777
+ceph-k8s
+ceph-static-pv-test
+kubernetes-dynamic-pvc-40fdd02f-7bdc-11e9-862d-5254003d139c
+kubernetes-dynamic-pvc-ca72793c-7bde-11e9-862d-5254003d139c
+kubernetes-dynamic-pvc-ce74631f-7bde-11e9-862d-5254003d139c
+testimage-bmw
+
+
+
+[root@node01 ~]# kubectl  exec -it web-sts-777-0  bash
+root@web-sts-777-0:/# mount | grep rbd
+/dev/rbd3 on /usr/share/nginx/html type ext4 (rw,relatime,stripe=4096,data=ordered)
+root@web-sts-777-0:/# df -lh
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          83G  4.8G   79G   6% /
+tmpfs            64M     0   64M   0% /dev
+tmpfs           3.9G     0  3.9G   0% /sys/fs/cgroup
+/dev/vda1        83G  4.8G   79G   6% /etc/hosts
+shm              64M     0   64M   0% /dev/shm
+/dev/rbd3        45M  1.1M   43M   3% /usr/share/nginx/html
+tmpfs           3.9G   12K  3.9G   1% /run/secrets/kubernetes.io/serviceaccount
+tmpfs           3.9G     0  3.9G   0% /proc/acpi
+tmpfs           3.9G     0  3.9G   0% /proc/scsi
+tmpfs           3.9G     0  3.9G   0% /sys/firmware
+root@web-sts-777-0:/# 
+
+
+

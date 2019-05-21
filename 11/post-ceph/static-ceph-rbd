@@ -1,0 +1,146 @@
+ceph auth get-key client.bmw
+AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww==[root@ceph-mon01 ceph]# 
+
+
+echo -n 'AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww==' | base64
+
+echo -n 'AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww==' | base64
+QVFEUzVlTmNJWFp4QUJBQXNIMTBIMHhvV25yQVhQcU55VFA3V3c9PQ==
+
+
+
+
+cat > ceph-secret.yaml << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bmw-secret-777
+type: "kubernetes.io/rbd"
+data:
+  key: QVFEUzVlTmNJWFp4QUJBQXNIMTBIMHhvV25yQVhQcU55VFA3V3c9PQ==
+EOF
+
+kubectl  create -f ceph-secret.yaml
+
+
+
+
+rbd create --size 20  bmw/ceph-image-777  --id bmw -m 172.16.99.1:6789 --key=AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww==
+
+
+rbd ls bmw
+ceph-image
+ceph-image-777
+ceph-k8s
+ceph-static-pv-test
+testimage-bmw
+
+
+
+
+cat > pv.yaml << EOF
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ceph-pv-777
+spec:
+  capacity:
+    storage: 20Mi
+  accessModes:
+    - ReadWriteOnce
+  rbd:
+    monitors:
+      - 172.16.99.1:6789
+    pool: bmw
+    image: ceph-image-777
+    user: bmw
+    secretRef:
+      name: bmw-secret-777
+    fsType: ext4
+    readOnly: false
+  persistentVolumeReclaimPolicy: Recycle
+EOF
+
+
+
+kubectl  create -f pv.yaml
+
+
+kubectl  get pv,pvc
+NAME                                                        CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM                          STORAGECLASS       REASON   AGE
+persistentvolume/ceph-pv                                    20Mi       RWO            Recycle          Bound       default/ceph-claim                                         2d10h
+persistentvolume/ceph-pv-777                                20Mi       RWO            Recycle          Available                                                              2m10s
+persistentvolume/ceph-static-test                           20Mi       RWO            Recycle          Bound       default/ceph-static-pv-claim                               150m
+persistentvolume/pvc-8eda4990-79ff-11e9-9cf2-5254003d139c   2Mi        RWO            Delete           Bound       default/ceph-rdb-claim         dynamic-ceph-rdb            2d8h
+persistentvolume/pvc-d4fb6abd-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            Delete           Bound       default/www-web-sts-0          dynamic-ceph-rdb            2d7h
+persistentvolume/pvc-d74ac9e5-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            Delete           Bound       default/www-web-sts-1          dynamic-ceph-rdb            2d7h
+
+NAME                                         STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS       AGE
+persistentvolumeclaim/ceph-claim             Bound    ceph-pv                                    20Mi       RWO                               2d10h
+persistentvolumeclaim/ceph-rdb-claim         Bound    pvc-8eda4990-79ff-11e9-9cf2-5254003d139c   2Mi        RWO            dynamic-ceph-rdb   2d8h
+persistentvolumeclaim/ceph-static-pv-claim   Bound    ceph-static-test                           20Mi       RWO                               146m
+persistentvolumeclaim/www-web-sts-0          Bound    pvc-d4fb6abd-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            dynamic-ceph-rdb   2d7h
+persistentvolumeclaim/www-web-sts-1          Bound    pvc-d74ac9e5-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            dynamic-ceph-rdb   2d7h
+
+
+
+
+
+
+
+
+cat >  pvc.yaml  << EOF
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: ceph-claim-777
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Mi
+EOF
+
+
+kubectl create -f pvc.yaml 
+
+
+kubectl  get pv
+NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                          STORAGECLASS       REASON   AGE
+ceph-pv                                    20Mi       RWO            Recycle          Bound    default/ceph-claim                                         2d10h
+ceph-pv-777                                20Mi       RWO            Recycle          Bound    default/ceph-claim-777                                     2m45s
+
+
+
+
+kubectl  delete  pod nginx-static-pv-test
+
+cat > nginx-static-pv-test.yaml << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-static-pv-test
+spec:
+  containers:
+  - name: nginx
+    image: nginx:latest
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - name: nginx-static-pv-test
+        mountPath: /data/
+        readOnly: false
+  volumes:
+  - name: nginx-static-pv-test
+    persistentVolumeClaim:
+      claimName: ceph-claim-777
+EOF
+
+
+
+
+kubectl  create -f nginx-static-pv-test.yaml
+
+
+mon01
+rbd feature disable bmw/ceph-image-777 object-map fast-diff deep-flatten

@@ -1,0 +1,270 @@
+hostnamectl  set-hostname  ceph-mon01
+
+echo 172.16.99.1  ceph-mon01  >> /etc/hosts
+
+
+cat > /etc/yum.repos.d/ceph.repo  << EOF
+[ceph]
+name=ceph
+baseurl=http://mirrors.163.com/ceph/rpm-luminous/el7/x86_64/
+gpgcheck=0
+[ceph-noarch]
+name=ceph-noarch
+baseurl=http://mirrors.163.com/ceph/rpm-luminous/el7/noarch/
+gpgcheck=0
+EOF
+
+
+yum -y  install ceph-deploy
+
+
+mkdir /cephcluster
+cd /cephcluster
+
+
+ceph-deploy  install  --no-adjust-repos  ceph-mon01
+
+
+
+ceph-deploy new ceph-mon01
+Traceback (most recent call last):
+  File "/usr/bin/ceph-deploy", line 18, in <module>
+    from ceph_deploy.cli import main
+  File "/usr/lib/python2.7/site-packages/ceph_deploy/cli.py", line 1, in <module>
+    import pkg_resources
+ImportError: No module named pkg_resources
+
+
+yum -y install python-distribute
+
+
+ceph-deploy new --public-network 172.16.99.0/24  ceph-mon01
+
+
+yum -y install epel-release
+
+
+
+ceph-deploy mon create ceph-mon01
+
+ceph-deploy mon create-initial
+
+ceph-deploy admin ceph-mon01
+
+ceph-deploy mgr create ceph-mon01
+
+
+
+ceph -s
+  cluster:
+    id:     0a4dc515-d1ce-467b-8b07-fbaabb61b4d8
+    health: HEALTH_OK
+ 
+  services:
+    mon: 1 daemons, quorum ceph-mon01
+    mgr: no daemons active
+    osd: 0 osds: 0 up, 0 in
+ 
+  data:
+    pools:   0 pools, 0 pgs
+    objects: 0 objects, 0B
+    usage:   0B used, 0B / 0B avail
+    pgs:     
+
+
+
+ceph-deploy disk zap ceph-mon01  /dev/vdb
+
+ceph-deploy osd create --data /dev/vdb  ceph-mon01
+
+
+
+ceph osd  status
++----+------------+-------+-------+--------+---------+--------+---------+-----------+
+| id |    host    |  used | avail | wr ops | wr data | rd ops | rd data |   state   |
++----+------------+-------+-------+--------+---------+--------+---------+-----------+
+| 0  | ceph-mon01 | 1024M | 18.9G |    0   |     0   |    0   |     0   | exists,up |
++----+------------+-------+-------+--------+---------+--------+---------+-----------+
+
+
+ceph health
+HEALTH_OK
+
+
+ceph osd stat
+1 osds: 1 up, 1 in
+
+
+
+
+使用ceph admin  为k8s 创建pool 
+ceph osd pool create bmw 32
+
+ceph osd lspools  
+1 bmw,
+
+
+删除pool
+
+vim /etc/ceph/ceph.conf 
+[mon] 
+mon allow pool delete = true
+
+
+systemctl restart ceph-mon.target
+ceph osd pool delete  bmw  bmw --yes-i-really-really-mean-it
+pool 'bmw' removed
+
+
+
+创建pool 
+ceph osd pool create bmw 32
+ceph osd pool get bmw size
+size: 3
+
+ceph osd pool set bmw size 1
+ceph osd pool get bmw size
+size: 1
+
+
+
+
+
+
+
+
+为客户端创建用户 并授权
+
+cd /cephcluster/
+ceph auth get-or-create client.bmw mon 'allow r' osd 'allow rwx pool=bmw' -o ceph.client.bmw.keyring
+
+
+ceph auth get-key client.bmw
+AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww==[root@ceph-mon01 /]# 
+
+
+
+这个key 没有经过base64 编码 k8s  secret 需要是要经过 base64 编码的key   
+echo -n 'xxx'  | base64
+base64 解码
+echo -n 'xxx'  | base64 -d
+
+
+
+使用bmw 用户创建 image
+
+master01 
+
+
+rbd create --size 1 bmw/testimage-bmw  --id bmw -m 172.16.99.1:6789 --key=AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww==
+2019-05-21 20:01:04.005048 7f6002d13d40 -1 auth: unable to find a keyring on /etc/ceph/ceph.client.bmw.keyring,/etc/ceph/ceph.keyring,/etc/ceph/keyring,/etc/ceph/keyring.bin,: (2) No such file or directory
+
+
+
+使用bmw 用户查看
+
+rbd ls  bmw   --id bmw -m 172.16.99.1:6789 --key=AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww==
+2019-05-21 20:01:48.338529 7fc0ceb9dd40 -1 auth: unable to find a keyring on /etc/ceph/ceph.client.bmw.keyring,/etc/ceph/ceph.keyring,/etc/ceph/keyring,/etc/ceph/keyring.bin,: (2) No such file or directory
+testimage-bmw
+
+
+
+ceph-mon01 上查看 image
+rbd ls bmw
+rbd ls bmw
+testimage-bmw
+
+
+ceph -s
+  cluster:
+    id:     f3bc12fd-4de0-4cc2-bb08-d53ea89a93f7
+    health: HEALTH_WARN
+            application not enabled on 1 pool(s)
+ 
+  services:
+    mon: 1 daemons, quorum ceph-mon01
+    mgr: ceph-mon01(active)
+    osd: 1 osds: 1 up, 1 in
+ 
+  data:
+    pools:   1 pools, 32 pgs
+    objects: 5 objects, 70B
+    usage:   1.00GiB used, 19.0GiB / 20.0GiB avail
+    pgs:     32 active+clean
+
+
+ceph osd pool application enable bmw rbd
+
+
+ceph -s
+  cluster:
+    id:     f3bc12fd-4de0-4cc2-bb08-d53ea89a93f7
+    health: HEALTH_OK
+ 
+  services:
+    mon: 1 daemons, quorum ceph-mon01
+    mgr: ceph-mon01(active)
+    osd: 1 osds: 1 up, 1 in
+ 
+  data:
+    pools:   1 pools, 32 pgs
+    objects: 5 objects, 70B
+    usage:   1.00GiB used, 19.0GiB / 20.0GiB avail
+    pgs:     32 active+clean
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

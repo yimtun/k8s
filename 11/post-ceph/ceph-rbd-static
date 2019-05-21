@@ -1,0 +1,226 @@
+计算指定存储池内所有映像及其相关快照的磁盘使用量，包括预分配的和实际使用的。此命令也可用于单个映像和快照
+
+rbd disk-usage -p bmw  
+NAME          PROVISIONED USED 
+testimage-bmw        1MiB   0B 
+
+rbd disk-usage -p bmw testimage-bmw
+NAME          PROVISIONED USED 
+testimage-bmw        1MiB   0B 
+
+
+k8s secrets
+
+kubectl  get secrets
+
+ceph-mon01
+
+ceph auth get-key client.bmw
+
+ceph auth get-key client.bmw
+AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww==[root@ceph-mon01 /]# 
+
+
+export CEPH_USER_SECRET='AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww=='
+
+kubectl create secret generic ceph--secret-2 --type="kubernetes.io/rbd" --from-literal=key=$CEPH_USER_SECRET
+
+
+kubectl  get secrets 
+NAME                  TYPE                                  DATA   AGE
+bmw-token-69gwm       kubernetes.io/service-account-token   3      8h
+ceph--secret-2        kubernetes.io/rbd                     1      5s
+ceph-admin-secret     kubernetes.io/rbd                     1      2d8h
+ceph-bmw-secret       kubernetes.io/rbd                     1      2d8h
+default-token-k5zqn   kubernetes.io/service-account-token   3      32d
+
+
+
+创建 image  ceph-static-test
+
+rbd create --size 20  bmw/ceph-static-pv-test  --id bmw -m 172.16.99.1:6789 --key=AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww==
+
+rbd  info   bmw/ceph-static-pv-test  --id bmw -m 172.16.99.1:6789 --key=AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww==
+2019-05-21 20:39:38.448611 7fa188e50d40 -1 did not load config file, using default settings.
+2019-05-21 20:39:38.454064 7fa188e50d40 -1 Errors while parsing config file!
+2019-05-21 20:39:38.454087 7fa188e50d40 -1 parse_file: cannot open /etc/ceph/ceph.conf: (2) No such file or directory
+2019-05-21 20:39:38.454090 7fa188e50d40 -1 parse_file: cannot open ~/.ceph/ceph.conf: (2) No such file or directory
+2019-05-21 20:39:38.454091 7fa188e50d40 -1 parse_file: cannot open ceph.conf: (2) No such file or directory
+2019-05-21 20:39:38.457073 7fa188e50d40 -1 Errors while parsing config file!
+2019-05-21 20:39:38.457098 7fa188e50d40 -1 parse_file: cannot open /etc/ceph/ceph.conf: (2) No such file or directory
+2019-05-21 20:39:38.457101 7fa188e50d40 -1 parse_file: cannot open ~/.ceph/ceph.conf: (2) No such file or directory
+2019-05-21 20:39:38.457102 7fa188e50d40 -1 parse_file: cannot open ceph.conf: (2) No such file or directory
+2019-05-21 20:39:38.513328 7fa188e50d40 -1 auth: unable to find a keyring on /etc/ceph/ceph.client.bmw.keyring,/etc/ceph/ceph.keyring,/etc/ceph/keyring,/etc/ceph/keyring.bin,: (2) No such file or directory
+rbd image 'ceph-static-pv-test':
+	size 20480 kB in 5 objects
+	order 22 (4096 kB objects)
+	block_name_prefix: rbd_data.105b74b0dc51
+	format: 2
+	features: layering, exclusive-lock, object-map, fast-diff, deep-flatten
+	flags: 
+	create_timestamp: Tue May 21 20:39:08 2019
+
+
+
+
+
+cat > ceph-static-pv-test.yaml  << EOF
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ceph-static-test
+spec:
+  capacity:
+    storage: 20Mi
+  accessModes:
+    - ReadWriteOnce
+  rbd:
+    monitors:
+      - 172.16.99.1:6789
+    pool: bmw
+    image: ceph-static-pv-test
+    user: bmw
+    secretRef:
+      name: ceph--secret-2
+    fsType: ext4
+    readOnly: false
+  persistentVolumeReclaimPolicy: Recycle
+EOF
+
+
+kubectl  -n default get pv
+NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                    STORAGECLASS       REASON   AGE
+ceph-pv                                    20Mi       RWO            Recycle          Bound    default/ceph-claim                                   2d8h
+pvc-8eda4990-79ff-11e9-9cf2-5254003d139c   2Mi        RWO            Delete           Bound    default/ceph-rdb-claim   dynamic-ceph-rdb            2d6h
+pvc-d4fb6abd-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            Delete           Bound    default/www-web-sts-0    dynamic-ceph-rdb            2d5h
+pvc-d74ac9e5-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            Delete           Bound    default/www-web-sts-1    dynamic-ceph-rdb            2d5h
+
+
+
+kubectl  -n default  create -f  ceph-static-pv-test.yaml 
+
+kubectl  -n default get pv
+NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM                    STORAGECLASS       REASON   AGE
+ceph-pv                                    20Mi       RWO            Recycle          Bound       default/ceph-claim                                   2d8h
+ceph-static-test                           20Mi       RWO            Recycle          Available                                                        5s
+pvc-8eda4990-79ff-11e9-9cf2-5254003d139c   2Mi        RWO            Delete           Bound       default/ceph-rdb-claim   dynamic-ceph-rdb            2d6h
+pvc-d4fb6abd-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            Delete           Bound       default/www-web-sts-0    dynamic-ceph-rdb            2d5h
+pvc-d74ac9e5-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            Delete           Bound       default/www-web-sts-1    dynamic-ceph-rdb            2d5h
+
+
+
+
+
+创建 pvc
+
+cat > ceph-static-pv-claim.yaml  << EOF
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: ceph-static-pv-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Mi
+EOF
+
+
+kubectl  get pvc
+NAME             STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS       AGE
+ceph-claim       Bound    ceph-pv                                    20Mi       RWO                               2d8h
+ceph-rdb-claim   Bound    pvc-8eda4990-79ff-11e9-9cf2-5254003d139c   2Mi        RWO            dynamic-ceph-rdb   2d6h
+www-web-sts-0    Bound    pvc-d4fb6abd-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            dynamic-ceph-rdb   2d5h
+www-web-sts-1    Bound    pvc-d74ac9e5-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            dynamic-ceph-rdb   2d5h
+
+
+kubectl  -n default get pv  | grep static
+ceph-static-test                           20Mi       RWO            Recycle          Available                                                        2m31s
+
+
+
+
+kubectl  create -f ceph-static-pv-claim.yaml 
+persistentvolumeclaim/ceph-static-pv-claim created
+[root@master01 ceph]# kubectl  -n default get pv  | grep static
+ceph-static-test                           20Mi       RWO            Recycle          Bound    default/ceph-static-pv-claim                               4m7s
+
+
+kubectl   get pvc | grep static
+ceph-static-pv-claim   Bound    ceph-static-test                           20Mi       RWO                               6m55s
+
+
+
+
+
+
+
+创建一个pod应用PVC   pod 仅仅和 pvc 关联
+
+
+cat > nginx-static-pv-test-99.1.yaml  << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-static-pv-test-99.1
+spec:
+  containers:
+  - name: nginx
+    image: nginx:latest
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - name: nginx-static-pv-test
+        mountPath: /data/
+        readOnly: false
+  volumes:
+  - name: nginx-static-pv-test
+    persistentVolumeClaim:
+      claimName: ceph-static-pv-claim
+EOF
+
+
+kubectl  create -f nginx-static-pv-test-99.1.yaml
+
+
+kubectl  get pod -o wide nginx-static-pv-test-99.1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

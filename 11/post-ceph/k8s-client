@@ -1,0 +1,167 @@
+cat > /etc/yum.repos.d/ceph.repo  << EOF
+[ceph]
+name=ceph
+baseurl=http://mirrors.163.com/ceph/rpm-luminous/el7/x86_64/
+gpgcheck=0
+[ceph-noarch]
+name=ceph-noarch
+baseurl=http://mirrors.163.com/ceph/rpm-luminous/el7/noarch/
+gpgcheck=0
+EOF
+
+scp /etc/yum.repos.d/ceph.repo  node01:/etc/yum.repos.d/
+scp /etc/yum.repos.d/ceph.repo  node02:/etc/yum.repos.d/
+
+
+yum install ceph ceph-fuse -y
+
+
+rbd create --size 20  bmw/ceph-image  --id bmw -m 172.16.99.1:6789 --key=AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww==
+
+rbd ls bmw
+ceph-image
+ceph-k8s
+ceph-static-pv-test
+testimage-bmw
+
+
+
+
+export CEPH_USER_SECRET='AQDS5eNcIXZxABAAsH10H0xoWnrAXPqNyTP7Ww=='
+kubectl create secret generic ceph-bmw-secret --type="kubernetes.io/rbd" --from-literal=key=$CEPH_USER_SECRET
+
+
+
+cat > ceph-pv.yaml  << EOF
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ceph-pv
+spec:
+  capacity:
+    storage: 20Mi
+  accessModes:
+    - ReadWriteOnce
+  rbd:
+    monitors:
+      - 172.16.99.1:6789
+    pool: bmw
+    image: ceph-image
+    user: bmw
+    secretRef:
+      name: ceph-bmw-secret
+    fsType: ext4
+    readOnly: false
+  persistentVolumeReclaimPolicy: Recycle
+EOF
+
+kubectl  create -f ceph-pv.yaml
+
+kubectl  get pv
+NAME      CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   REASON   AGE
+ceph-pv   20Mi       RWO            Recycle          Available                                   5s
+
+
+
+cat > pvc.yaml << EOF
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: ceph-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Mi
+EOF
+
+
+kubectl create -f pvc.yaml
+
+kubectl get pv,pvc
+
+
+
+
+
+cat > nginx-static-pv-test.yaml  << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-static-pv-test
+spec:
+  containers:
+  - name: nginx
+    image: nginx:latest
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - name: nginx-static-pv-test
+        mountPath: /data/
+        readOnly: false
+  volumes:
+  - name: nginx-static-pv-test
+    persistentVolumeClaim:
+      claimName: ceph-claim
+EOF
+
+
+
+kubectl create -f nginx-static-pv-test.yaml
+
+
+
+kubectl  get pod   nginx-static-pv-test
+NAME                   READY   STATUS              RESTARTS   AGE
+nginx-static-pv-test   0/1     ContainerCreating   0          3m8s
+
+
+
+
+
+
+
+ceph auth get-key client.admin
+
+
+export CEPH_ADMIN_SECRET='AQAb5eNcJzy6FxAA8B3a0D3mI8FGCVOGFjaxdw=='
+
+
+kubectl create secret generic ceph-admin-secret --type="kubernetes.io/rbd" --from-literal=key=$CEPH_ADMIN_SECRET
+
+
+
+cat > ceph-pv.yaml  << EOF
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ceph-pv
+spec:
+  capacity:
+    storage: 20Mi
+  accessModes:
+    - ReadWriteOnce
+  rbd:
+    monitors:
+      - 172.16.99.1:6789
+    pool: bmw
+    image: ceph-image
+    user: admin
+    secretRef:
+      name: ceph-admin-secret
+    fsType: ext4
+    readOnly: false
+  persistentVolumeReclaimPolicy: Recycle
+EOF
+
+
+kubectl  create -f ceph-pv.yaml
+
+
+
+
+
+
+
+
+
