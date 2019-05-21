@@ -1,0 +1,10 @@
+ceph fs ls
+name: cephfs, metadata pool: cephfs_metadata, data pools: [cephfs_data ]
+
+mount -t ceph 172.16.101.99:6789:/  /mnt/cephfs -o 
+
+ceph-fuse -k /etc/ceph/ceph.
+
+mount |grep cephfs
+
+ceph-fuse -k /etc/ceph/ceph.client.admin.keyring  -m 172.16.99.101 /mnt/cephfs

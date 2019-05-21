@@ -1,0 +1,146 @@
+kubectl  get pv,pvc
+NAME                                                        CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                    STORAGECLASS       REASON   AGE
+persistentvolume/ceph-pv                                    20Mi       RWO            Recycle          Bound    default/ceph-claim                                   9h
+persistentvolume/pvc-8eda4990-79ff-11e9-9cf2-5254003d139c   2Mi        RWO            Delete           Bound    default/ceph-rdb-claim   dynamic-ceph-rdb            7h35m
+persistentvolume/pvc-d4fb6abd-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            Delete           Bound    default/www-web-sts-0    dynamic-ceph-rdb            6h50m
+persistentvolume/pvc-d74ac9e5-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            Delete           Bound    default/www-web-sts-1    dynamic-ceph-rdb            6h50m
+
+NAME                                   STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS       AGE
+persistentvolumeclaim/ceph-claim       Bound    ceph-pv                                    20Mi       RWO                               9h
+persistentvolumeclaim/ceph-rdb-claim   Bound    pvc-8eda4990-79ff-11e9-9cf2-5254003d139c   2Mi        RWO            dynamic-ceph-rdb   7h35m
+persistentvolumeclaim/www-web-sts-0    Bound    pvc-d4fb6abd-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            dynamic-ceph-rdb   6h50m
+persistentvolumeclaim/www-web-sts-1    Bound    pvc-d74ac9e5-7a05-11e9-9cf2-5254003d139c   50Mi       RWO            dynamic-ceph-rdb   6h50m
+
+
+
+kubectl  get storageclasses.storage.k8s.io  dynamic-ceph-rdb  -o yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  creationTimestamp: 2019-05-19T06:29:01Z
+  name: dynamic-ceph-rdb
+  resourceVersion: "2981081"
+  selfLink: /apis/storage.k8s.io/v1/storageclasses/dynamic-ceph-rdb
+  uid: 642db9a6-79ff-11e9-9cf2-5254003d139c
+parameters:
+  adminId: admin
+  adminSecretName: ceph-admin-secret
+  fsType: ext4
+  imageFeatures: layering
+  imageFormat: "2"
+  monitors: 172.16.99.101:6789
+  pool: bmw
+  userId: bmw
+  userSecretName: ceph-bmw-secret
+provisioner: kubernetes.io/rbd
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+
+
+
+
+
+
+kubectl  get pvc www-web-sts-0  -o yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: kubernetes.io/rbd
+  creationTimestamp: 2019-05-19T07:15:07Z
+  finalizers:
+  - kubernetes.io/pvc-protection
+  labels:
+    app: nginx
+  name: www-web-sts-0
+  namespace: default
+  resourceVersion: "2985080"
+  selfLink: /api/v1/namespaces/default/persistentvolumeclaims/www-web-sts-0
+  uid: d4fb6abd-7a05-11e9-9cf2-5254003d139c
+spec:
+  accessModes:
+  - ReadWriteOnce
+  dataSource: null
+  resources:
+    requests:
+      storage: 50Mi
+  storageClassName: dynamic-ceph-rdb
+  volumeName: pvc-d4fb6abd-7a05-11e9-9cf2-5254003d139c
+status:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 50Mi
+  phase: Bound
+
+
+
+
+kubectl  get pvc ceph-rdb-claim  -o yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: kubernetes.io/rbd
+  creationTimestamp: 2019-05-19T06:30:13Z
+  finalizers:
+  - kubernetes.io/pvc-protection
+  name: ceph-rdb-claim
+  namespace: default
+  resourceVersion: "2981214"
+  selfLink: /api/v1/namespaces/default/persistentvolumeclaims/ceph-rdb-claim
+  uid: 8eda4990-79ff-11e9-9cf2-5254003d139c
+spec:
+  accessModes:
+  - ReadWriteOnce
+  dataSource: null
+  resources:
+    requests:
+      storage: 2Mi
+  storageClassName: dynamic-ceph-rdb
+  volumeName: pvc-8eda4990-79ff-11e9-9cf2-5254003d139c
+status:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 2Mi
+  phase: Bound
+
+
+
+
+kubectl  get pvc ceph-claim -o yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+  creationTimestamp: 2019-05-19T04:24:59Z
+  finalizers:
+  - kubernetes.io/pvc-protection
+  name: ceph-claim
+  namespace: default
+  resourceVersion: "2970349"
+  selfLink: /api/v1/namespaces/default/persistentvolumeclaims/ceph-claim
+  uid: 105a5c49-79ee-11e9-9cf2-5254003d139c
+spec:
+  accessModes:
+  - ReadWriteOnce
+  dataSource: null
+  resources:
+    requests:
+      storage: 20Mi
+  volumeName: ceph-pv
+status:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 20Mi
+  phase: Bound
+
+

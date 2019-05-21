@@ -1,0 +1,139 @@
+kubectl  -n kube-system  get pod
+NAME                                    READY   STATUS    RESTARTS   AGE
+coredns-779ffd89bd-lzg9s                1/1     Running   5          18d
+heapster-77db4c4496-sstxz               1/1     Running   1          28d
+kubernetes-dashboard-659798bd99-gjjnm   1/1     Running   0          18d
+monitoring-grafana-5c5fbc85b-45dtk      1/1     Running   1          28d
+monitoring-influxdb-679d6dfb4d-xhbs5    1/1     Running   0          18d
+
+
+
+kubectl  -n default  get service
+NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+kubernetes   ClusterIP   10.254.0.1   <none>        443/TCP   28d
+
+
+
+kubectl  -n kube-system   get endpoints  -o wide
+NAME                      ENDPOINTS                       AGE
+heapster                  172.30.53.3:8082                28d
+kube-controller-manager   <none>                          28d
+kube-dns                  172.30.53.6:53,172.30.53.6:53   28d
+kube-scheduler            <none>                          28d
+kubernetes-dashboard      172.30.53.7:8443                28d
+monitoring-grafana        172.30.53.2:3000                28d
+monitoring-influxdb       172.30.53.5:8086                28d
+
+
+
+
+cat << EOF > req-limit.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: limit-pod
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.242
+  containers:
+  - name: main
+    image: busybox
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: "20Mi"
+    command: ["dd","if=/dev/zero","of=/dev/null"]
+EOF
+
+kubectl create -f req-limit.yaml
+
+
+
+
+
+kubectl  get pod
+NAME        READY   STATUS    RESTARTS   AGE
+limit-pod   1/1     Running   0          11s
+
+
+
+kubectl exec limit-pod -- nslookup kubia
+kubectl exec limit-pod -- nslookup kubernetes
+
+
+
+kubectl exec limit-pod -- nslookup kubernetes
+Server:		114.114.114.114
+Address:	114.114.114.114:53
+
+** server can't find kubernetes: NXDOMAIN
+
+*** Can't find kubernetes: No answer
+
+
+
+kubectl exec limit-pod -- nslookup kubernetes-dashboard
+Server:		114.114.114.114
+Address:	114.114.114.114:53
+
+** server can't find kubernetes-dashboard: NXDOMAIN
+
+*** Can't find kubernetes-dashboard: No answer
+
+
+
+cat s1.yaml 
+apiVersion: apps/v1beta2
+kind: ReplicaSet
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia
+        image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+---          
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: kubia
+
+
+
+#kubia-clusterip.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia
+spec:
+  clusterIP: 10.254.129.235
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: kubia
+  sessionAffinity: None
+  type: ClusterIP
+
+
+

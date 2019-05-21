@@ -1,0 +1,73 @@
+kubectl  get node
+NAME             STATUS                     ROLES    AGE   VERSION
+192.168.10.242   Ready                      <none>   42h   v1.12.0-rc.2
+192.168.10.243   Ready,SchedulingDisabled   <none>   42h   v1.12.0-rc.2
+
+
+kubectl uncordon 192.168.10.243
+
+
+kubectl  get node
+NAME             STATUS   ROLES    AGE   VERSION
+192.168.10.242   Ready    <none>   42h   v1.12.0-rc.2
+192.168.10.243   Ready    <none>   42h   v1.12.0-rc.2
+
+
+mkdir /svc
+cd /svc
+
+kubectl create namespace test
+
+
+cat > svc.yaml << EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: kubia
+EOF
+
+
+
+kubectl -n test create -f svc.yaml
+
+
+kubectl  -n test get  svc
+NAME    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+kubia   ClusterIP   10.254.104.129   <none>        80/TCP    10s
+
+
+
+ClusterIP 集群内部访问
+
+kubectl  exec pod --ping 10.254.104.129
+kubectl  exec pod --curl 10.254.104.129
+
+kubectl run  alpine  --image=alpine  --image=alpine --restart=Never --command sleep 3000
+
+kubectl exec  tool -- curl 10.254.104.129:80
+
+
+
+
+
+
+
+
+
+e
+
+
+
+
+
+
+
+
+
+

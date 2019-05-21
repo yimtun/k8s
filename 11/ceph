@@ -1,0 +1,323 @@
+ceph auth get-key client.bmw
+
+export CEPH_USER_SECRET='AQDh/N9cAqRsAxAAau/WQ3zlVkPoSjn42THfJA=='
+
+kubectl create secret generic ceph-bmw-secret --type="kubernetes.io/rbd" --from-literal=key=$CEPH_USER_SECRET
+
+
+ceph mgr stat
+ceph osd stat
+
+ceph osd  status
+
+
+查看key
+
+ceph auth get-key client.admin
+
+base64
+
+
+echo -n key''   | base64 -d
+
+
+
+创建image   测试  用户权限
+
+rbd --help
+
+rbd du 
+
+
+
+
+
+rbd info 
+rbd status
+
+
+rbd status bmw/testimage-gy --id admin -m 192.168.10.231:6789 --key=AQBG+N9cZT/TGhAA2CRtHHJUMnmhSBIYFWQWcg==
+GuanYu 2019/5/19 10:10:38
+
+rbd info bmw/testimage-gy --id admin -m 192.168.10.231:6789 --key=AQBG+N9cZT/TGhAA2CRtHHJUMnmhSBIYFWQWcg==
+
+
+
+rbd map bmw/testimage-gy --id admin -m 192.168.10.231:6789 --key=AQBG+N9cZT/TGhAA2CRtHHJUMnmhSBIYFWQWcg==
+
+rbd showmapped
+
+rbd unmap dev/rbd0
+rbd showmapped
+
+rbd status 
+
+watcher 只剩下一个
+
+mkdir /mnt/ceph-rbd
+mount /dev/rbd0 /mnt/ceph-rbd
+mkfs.ext4  /dev/rbd0
+mount /dev/rbd0 /mnt/ceph-rbd
+
+
+mount | grep rbd0
+
+rbd showmapped
+
+
+rbd unmap /dev/rbd0  报错 resource busy
+
+k8s  改源码   unmap  几次
+
+umount  /mnt/ceph-rbd
+
+umount -l 强行卸载
+
+rbd  status  bmw/testimag-gy
+
+
+
+rbd ls bmw
+
+
+ceph L 
+
+uname  -r  
+
+[root@master01 ~]# uname  -r
+3.10.0-957.el7.x86_64
+
+升级到 4.5  或者  
+
+ceph  osd crush  tunables jewwl  兼容
+ceph  osd  crush reweight-all
+
+ceph status
+
+
+rados df
+
+
+
+部署ceph
+cd /cephcluster/
+ceph-deploy mds create  ceph-mon01
+
+ceph mds stat
+cephfs-1/1/1 up  {0=ceph-mon01=up:active}
+ceph osd status
+
+
+
+创建pool
+
+ceph osd pool create bmw 64
+ceph osd pool set bmw size 10
+ceph osd lspools  
+
+
+ceph osd get 
+
+ceph osd pool set bmw size 10
+Error ERANGE: pool id 3 pg_num 64 size 10 would mean 1408 total pgs, which exceeds max 1000 (mon_max_pg_per_osd 200 * num_in_osds 5)
+
+ceph osd pool get bmw size
+size: 3
+
+ceph osd lspools  
+
+
+创建用户并授权
+
+ceph auth get-or-create client.bmw mon 'allow r' osd 'allow rwx pool=bmw' -o ceph.client.bmw.keyring
+
+
+
+ceph auth get-key client.bmw 
+AQCOw+Bco5yJIxAAJ3p2nCfrJcx1lIQMrq/Q+w==
+
+
+ceph auth get-key client.admin
+AQBz29dc6Df7DxAAhT6bz6LcVDes61LsKbpmnA==
+
+
+
+创建image
+
+rbd create --size 1 bmw/testimage --id admin -m 172.16.99.101:6789 --key=AQBz29dc6Df7DxAAhT6bz6LcVDes61LsKbpmnA==
+
+
+rbd ls bmw
+testimage
+
+rbd create --size 1 bmw/testimage-bmw  --id bmw -m 172.16.99.101:6789 --key=AQCOw+Bco5yJIxAAJ3p2nCfrJcx1lIQMrq/Q+w==
+
+
+rbd ls bmw
+testimage
+testimage-bmw
+
+
+
+k8s   节点安装 客户端
+
+master01 
+scp 172.16.99.101:/etc/yum.repos.d/CentOS-Ceph-Luminous.repo  ./
+
+scp CentOS-Ceph-Luminous.repo  node01:/etc/yum.repos.d/
+
+
+创建image
+
+rbd create bmw/ceph-image -s 20
+[root@ceph-mon01 yum.repos.d]# rbd ls bmw
+ceph-image
+testimage
+testimage-bmw
+
+
+
+创建一个pv
+
+
+cat > ceph-pv.yaml << EOF
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ceph-pv
+spec:
+  capacity:
+    storage: 20Mi
+  accessModes:
+    - ReadWriteOnce
+  rbd:
+    monitors:
+      - 1172.16.99.101:6789
+    pool: bmw
+    image: ceph-image
+    user: admin
+    secretRef:
+      name: ceph-admin-secret
+    fsType: ext4
+    readOnly: false
+  persistentVolumeReclaimPolicy: Recycle
+EOF
+
+
+kubect get pv
+kubect get pv,pvc
+
+
+
+
+
+kubectl  get secrets
+
+kubect get secrets ceph-admin-secret -o yaml 
+
+echo -n '' | base64 -d
+
+
+创建  secret
+
+
+kubectl describe persistentolumeclaim/ceph-claim
+
+用户问题？
+
+
+rbd status  bmw/ceph-img 
+
+watchwer  
+
+rbd lock list bmw/ceph-image
+rbd info vmw/ceph-image
+
+
+lock 锁
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

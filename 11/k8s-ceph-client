@@ -1,0 +1,205 @@
+master01 实际并不需要安装cpeh 客户单
+
+master01
+node01
+node02
+
+
+yum install ceph ceph-fuse -y
+
+创建访问ceph集群的 secret
+
+ceph-mon01
+
+ceph auth get-key client.admin
+AQBz29dc6Df7DxAAhT6bz6LcVDes61LsKbpmnA==
+
+
+ceph auth get-key client.bmw
+AQCOw+Bco5yJIxAAJ3p2nCfrJcx1lIQMrq/Q+w==
+
+
+
+
+k8s  master01
+export CEPH_ADMIN_SECRET='AQBz29dc6Df7DxAAhT6bz6LcVDes61LsKbpmnA=='
+
+kubectl create secret generic ceph-admin-secret --type="kubernetes.io/rbd" --from-literal=key=$CEPH_ADMIN_SECRET
+
+bmw-secret:
+
+export CEPH_USER_SECRET='AQCOw+Bco5yJIxAAJ3p2nCfrJcx1lIQMrq/Q+w=='
+kubectl create secret generic ceph-bmw-secret --type="kubernetes.io/rbd" --from-literal=key=$CEPH_USER_SECRET
+
+
+
+ceph-mon 查看image
+
+bd ls bmw
+ceph-image
+testimage
+testimage-bmw
+
+
+
+k8s master01 使用 bmw 创建一个 image
+
+rbd create bmw/ceph-image -s 20
+
+rbd create bmw/ceph-image -s 20 --id bmw  -m 172.16.99.101:6789 --key=AQCOw+Bco5yJIxAAJ3p2nCfrJcx1lIQMrq/Q+w==
+
+
+创建一个pv
+
+cat >  ceph-pv.yaml  << EOF
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ceph-pv
+spec:
+  capacity:
+    storage: 20Mi
+  accessModes:
+    - ReadWriteOnce
+  rbd:
+    monitors:
+      - 172.16.99.101:6789
+    pool: bmw
+    image: ceph-image
+    user: admin
+    secretRef:
+      name: ceph-admin-secret
+    fsType: ext4
+    readOnly: false
+  persistentVolumeReclaimPolicy: Recycle
+EOF
+
+
+
+kubectl create -f ceph-pv.yaml
+persistentvolume/ceph-pv created
+[root@master01 ceph]# kubectl  get pv
+NAME      CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   REASON   AGE
+ceph-pv   20Mi       RWO            Recycle          Available                                   3s
+
+
+
+
+
+
+创建一个pvc
+
+cat > pvc.yaml << EOF
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: ceph-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Mi
+EOF
+
+
+
+kubectl  create -f pvc.yaml
+persistentvolumeclaim/ceph-claim created
+[root@master01 ceph]# kubectl  get pv,pvc
+NAME                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                STORAGECLASS   REASON   AGE
+persistentvolume/ceph-pv   20Mi       RWO            Recycle          Bound    default/ceph-claim                           85s
+
+NAME                               STATUS   VOLUME    CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+persistentvolumeclaim/ceph-claim   Bound    ceph-pv   20Mi       RWO                           8s
+[root@master01 ceph]# 
+
+
+
+
+
+cat > nginx-static-pv-test.yaml  << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-static-pv-test
+spec:
+  containers:
+  - name: nginx
+    image: nginx:latest
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - name: nginx-static-pv-test
+        mountPath: /data/
+        readOnly: false
+  volumes:
+  - name: nginx-static-pv-test
+    persistentVolumeClaim:
+      claimName: ceph-claim
+EOF
+
+
+
+docker pull nginx:latest
+
+
+
+kubectl  create -f nginx-static-pv-test.yaml
+
+kubectl exec nginx-static-pv-test mount|grep rbd
+
+
+kubectl  describe  pod nginx-static-pv-test
+
+2019-05-19 13:28:29.234697 7f003ba6fd40 -1 auth: unable to find a keyring on /etc/ceph/ceph.client.admin.keyring,/etc/ceph/ceph.keyring,/etc/ceph/keyring,/etc/ceph/keyring.bin,: (2) No such file or directory
+RBD image feature set mismatch. You can disable features unsupported by the kernel with "rbd feature disable bmw/ceph-image object-map fast-diff deep-flatten".
+In some cases useful info is found in syslog - try "dmesg | tail".
+rbd: map failed: (6) No such device or address
+
+
+node01 node02 
+scp 172.16.99.101:/etc/ceph/ceph.client.admin.keyring   /etc/ceph/
+scp 172.16.99.101:/etc/ceph/ceph.client.admin.keyring  ./
+
+
+scp 172.16.99.101:/etc/ceph/ceph.conf    /etc/ceph/
+
+
+kubectl  describe  pod nginx-static-pv-test 
+
+ Warning  FailedMount             16s               kubelet, 192.168.10.242  Unable to mount volumes for pod "nginx-static-pv-test_default(07b67a79-79f9-11e9-9cf2-5254003d139c)": timeout expired waiting for volumes to attach or mount for pod "default"/"nginx-static-pv-test". list of unmounted volumes=[nginx-static-pv-test]. list of unattached volumes=[nginx-static-pv-test default-token-k5zqn]
+  Warning  FailedMount             6s (x5 over 16s)  kubelet, 192.168.10.242  MountVolume.WaitForAttach failed for volume "ceph-pv" : rbd: map failed exit status 6, rbd output: rbd: sysfs write failed
+RBD image feature set mismatch. You can disable features unsupported by the kernel with "rbd feature disable bmw/ceph-image object-map fast-diff deep-flatten".
+In some cases useful info is found in syslog - try "dmesg | tail".
+rbd: map failed: (6) No such device or address
+
+
+
+
+ceph-mon
+
+rbd feature disable bmw/ceph-image object-map fast-diff deep-flatten
+
+
+mount | grep rbd
+/dev/rbd0 on /var/lib/kubelet/plugins/kubernetes.io/rbd/mounts/bmw-image-ceph-image type ext4 (rw,relatime,stripe=4096,data=ordered)
+/dev/rbd0 on /var/lib/kubelet/pods/aaf98b09-79f9-11e9-9cf2-5254003d139c/volumes/kubernetes.io~rbd/ceph-pv type ext4 (rw,relatime,stripe=4096,data=ordered)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

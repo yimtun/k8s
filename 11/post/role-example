@@ -1,0 +1,119 @@
+查看当前role
+
+
+kubectl  get role  --all-namespaces 
+NAMESPACE       NAME                                             AGE
+ingress-nginx   nginx-ingress-role                               28d
+kube-public     system:controller:bootstrap-signer               30d
+kube-system     extension-apiserver-authentication-reader        30d
+kube-system     kubernetes-dashboard-minimal                     30d
+kube-system     system::leader-locking-kube-controller-manager   30d
+kube-system     system::leader-locking-kube-scheduler            30d
+kube-system     system:controller:bootstrap-signer               30d
+kube-system     system:controller:cloud-provider                 30d
+kube-system     system:controller:token-cleaner                  30d
+
+
+
+
+创建获取default ns 下所有pod 的 role
+mkdir  /root/rbac
+
+cat > /root/rbac/pod-reader-role.yaml << EOF
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  namespace: default
+  name: pod-reader
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["pods"]
+  #resourceNames: ["my-pod"]
+  verbs: ["get", "watch", "list"]
+EOF
+
+
+
+kubectl  create -f /root/rbac/pod-reader-role.yaml 
+
+kubectl  get role pod-reader  -o yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  creationTimestamp: 2019-05-19T14:35:53Z
+  name: pod-reader
+  namespace: default
+  resourceVersion: "3022941"
+  selfLink: /apis/rbac.authorization.k8s.io/v1/namespaces/default/roles/pod-reader
+  uid: 67c0942b-7a43-11e9-9cf2-5254003d139c
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - watch
+  - list
+
+
+
+
+
+查看clusterrole
+kubectl  get clusterrole --all-namespaces
+
+kubectl  get clusterrole --all-namespaces  | grep cluster-pod-reader
+
+
+
+
+创建clusterrole 可以查看所有ns 中的pod
+
+cat > /root/rbac/clusterrole.yaml << EOF
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: cluster-pod-reader
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["pods"]
+  #resourceNames: ["my-pod"]
+  verbs: ["get", "watch", "list"]
+EOF
+
+
+kubectl  create -f /root/rbac/clusterrole.yaml
+
+kubectl  get  clusterrole cluster-pod-reader -o yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: 2019-05-19T14:41:41Z
+  name: cluster-pod-reader
+  resourceVersion: "3023440"
+  selfLink: /apis/rbac.authorization.k8s.io/v1/clusterroles/cluster-pod-reader
+  uid: 377cf5de-7a44-11e9-9cf2-5254003d139c
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - watch
+  - list
+
+
+
+
+
+
+
+
+
+
+
+
+
+

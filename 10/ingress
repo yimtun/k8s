@@ -1,0 +1,9 @@
+ingress tls
+
+ingress 承担加解密  CPU 密集   加速卡  芯片  pci 
+
+做 tls 
+
+nignx  4 层 tcp   udp
+
+

@@ -1,0 +1,67 @@
+kubectl  api-resources  -o wide
+
+
+kubectl  get clusterrolebindings.rbac.authorization.k8s.io 
+
+
+主体
+
+kubectl  get serviceaccounts 
+NAME      SECRETS   AGE
+default   1         29d
+
+
+
+kubectl  get serviceaccounts  default  -o yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  creationTimestamp: 2019-04-19T11:10:48Z
+  name: default
+  namespace: default
+  resourceVersion: "266"
+  selfLink: /api/v1/namespaces/default/serviceaccounts/default
+  uid: c8ce65be-6293-11e9-84bd-5254003d139c
+secrets:
+- name: default-token-k5zqn
+[root@master01 ~]# 
+
+
+user  个人
+group   用户组
+service account  
+
+kubectl create serviceaccount bmw-svc
+如何创建 user  ?
+
+
+kubectl  create 
+clusterrole          deployment           job                  priorityclass        rolebinding          serviceaccount       
+clusterrolebinding   -f                   namespace            quota                secret               
+configmap            --filename=          poddisruptionbudget  role                 service              
+
+
+
+kubectl  config get-contexts 
+CURRENT   NAME         CLUSTER      AUTHINFO   NAMESPACE
+*         kubernetes   kubernetes   admin      
+
+
+
+创建证书 创建user
+
+上午说 改  k8s  umont   ceph  rbd  重试的次数   
+
+
+
+
+
+
+
+
+
+
+
+
+
+

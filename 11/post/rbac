@@ -1,0 +1,80 @@
+角色
+
+role 
+单个ns 
+
+集群级别的 
+clusterrole
+
+
+主体  
+
+user group serviceaccount
+
+绑定角色   
+
+rolebingding   clusterrolebinding 
+
+
+
+Role
+
+
+
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  namespace: default
+  name: pod-reader
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["pods"]
+  #resourceNames: ["my-pod"]
+  verbs: ["get", "watch", "list"]
+
+
+
+
+clusterRole
+
+
+
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: cluster-pod-reader
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["pods"]
+  #resourceNames: ["my-pod"]
+  verbs: ["get", "watch", "list"]
+
+
+
+verbs 动作
+
+1. apiGroups: 指定哪个 API 组下的权限,比如：apps，可以使用该命令获取apiGroups，如果为空字符串，代表就是core下的api: kubectl api-resources -o wide
+2. resources: 该apiGroups组下具体资源，比如 pod,service,secret 等
+3. verbs: 指对该资源具体执行哪些动作,如 get, delete,list 等
+
+kubectl api-resources -o wide
+
+
+kubectl api-resources -o wide | grep secret
+secrets         true         Secret             [create delete deletecollection get list patch update watch]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

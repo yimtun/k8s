@@ -1,0 +1,129 @@
+查看rolebinding
+
+kubectl  get rolebindings.rbac.authorization.k8s.io  --all-namespaces 
+NAMESPACE       NAME                                             AGE
+ingress-nginx   nginx-ingress-role-nisa-binding                  28d
+kube-public     system:controller:bootstrap-signer               30d
+kube-system     kubernetes-dashboard-minimal                     30d
+kube-system     system::leader-locking-kube-controller-manager   30d
+kube-system     system::leader-locking-kube-scheduler            30d
+kube-system     system:controller:bootstrap-signer               30d
+kube-system     system:controller:cloud-provider                 30d
+kube-system     system:controller:token-cleaner                  30d
+
+
+
+创建rolebinding
+
+
+cat > /root/rbac/rolebinding.yaml << EOF
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: read-pods
+  namespace: default
+subjects:
+- kind: User  # May be "User", "Group" or "ServiceAccount"
+  name: bmw
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+EOF
+
+
+主体  Subjects  user gourp  serviceaccount
+
+
+kubectl  create -f /root/rbac/rolebinding.yaml 
+
+kubectl  get rolebindings.rbac.authorization.k8s.io  read-pods  -o yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  creationTimestamp: 2019-05-19T14:49:27Z
+  name: read-pods
+  namespace: default
+  resourceVersion: "3024108"
+  selfLink: /apis/rbac.authorization.k8s.io/v1/namespaces/default/rolebindings/read-pods
+  uid: 4d389860-7a45-11e9-9cf2-5254003d139c
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-reader
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: User
+  name: bmw
+
+RoleBinding还可以roleRef到 ClusterRole 
+
+
+rolebinding 既可以将 subject 和 role 关联
+又可以将 subject  和clusterrole 进行关联
+但是clusterrolebinding 仅仅可以将 subject 和 cluserrole 进行关联
+
+
+
+也可以使用命令创建rolebinding
+
+
+将一个user 类型的 subject 和 名字为 pod-reader 的 role 进行关联
+kubectl create rolebinding read-pods --role=pod-reader --user=bmw --namespace=default
+
+kubectl  get rolebindings.rbac.authorization.k8s.io  -o wide
+其它类似 subjects:
+
+
+绑定关联 serviceaccount 类型的 subject 
+kubectl create rolebinding read-pods-svc --role=pod-reader --serviceaccount=default:bmw-svc --namespace=default
+
+绑定关联 group
+kubectl create rolebinding read-pods-group --role=pod-reader --group=bmw-group --namespace=default
+
+
+clusterrolebinding
+
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: read-pods-global
+subjects:
+- kind: User
+  name: bmw
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: cluster-pod-reader
+  apiGroup: rbac.authorization.k8s.io
+
+
+kubectl create clusterrolebinding read-pods-global --clusterrole=cluster-pod-reader --user=bmw
+kubectl  get clusterrolebindings.rbac.authorization.k8s.io  -o wide
+
+
+
+
+使用rolebinding 进行测试
+
+kubectl  get rolebindings.rbac.authorization.k8s.io 
+NAME        AGE
+read-pods   11m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

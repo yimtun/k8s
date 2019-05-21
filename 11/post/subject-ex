@@ -1,0 +1,64 @@
+使用rolebinding 进行测试
+
+kubectl  get rolebindings.rbac.authorization.k8s.io
+NAME        AGE
+read-pods   11m
+
+
+
+删掉
+kubectl  get clusterrolebindings.rbac.authorization.k8s.io  |grep read-pods-global
+
+
+
+
+创建主体
+
+kubectl  get rolebindings.rbac.authorization.k8s.io  -o yaml
+apiVersion: v1
+items:
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    creationTimestamp: 2019-05-19T14:49:27Z
+    name: read-pods
+    namespace: default
+    resourceVersion: "3024108"
+    selfLink: /apis/rbac.authorization.k8s.io/v1/namespaces/default/rolebindings/read-pods
+    uid: 4d389860-7a45-11e9-9cf2-5254003d139c
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: pod-reader
+  subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: bmw
+kind: List
+metadata:
+  resourceVersion: ""
+  selfLink: ""
+
+
+认证模块  证书 用户 组织  CN  O
+
+kubectl  get serviceaccounts --all-namespaces 
+
+kubectl  get serviceaccounts  default  -o yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  creationTimestamp: 2019-04-19T11:10:48Z
+  name: default
+  namespace: default
+  resourceVersion: "266"
+  selfLink: /api/v1/namespaces/default/serviceaccounts/default
+  uid: c8ce65be-6293-11e9-84bd-5254003d139c
+secrets:
+- name: default-token-k5zqn
+
+
+kubectl  get secrets  default-token-k5zqn  -o yaml
+
+
+

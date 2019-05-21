@@ -1,0 +1,113 @@
+kubect get secrets ceph-bmw-secret-test -o yaml
+
+创建 storageClass
+
+
+cat >storageclass-ceph-rbd.yaml<<EOF
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: dynamic-ceph-rbd
+provisioner: kubernetes.io/rbd
+parameters:
+  monitors: 172.16.99.101:6789
+  adminId: admin
+  adminSecretName: ceph-admin-secret
+  # adminSecretNamespace: kube-system
+  pool: bmw
+  userId: bmw
+  userSecretName: ceph-bmw-secret
+  fsType: ext4
+  imageFormat: "2"
+  imageFeatures: "layering"
+EOF
+$ kubectl  create  -f storageclass-ceph-rdb.yaml
+
+
+
+
+cat >ceph-rdb-pvc-test.yaml<<EOF
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: ceph-rdb-claim
+spec:
+  accessModes:     
+    - ReadWriteOnce
+  storageClassName: dynamic-ceph-rdb
+  resources:
+    requests:
+      storage: 2Mi
+EOF
+$ kubectl apply -f ceph-rdb-pvc-test.yaml
+
+
+
+kubectl  get pvc,pv
+
+
+#nginx-rbd.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-rbd-test
+spec:
+  containers:
+  - name: nginx
+    image: nginx:latest
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - name: nginx-rbd
+        mountPath: /data/
+        readOnly: false
+  volumes:
+  - name: nginx-rbd
+    persistentVolumeClaim:
+      claimName: ceph-rdb-claim
+
+
+kubectl  describe pod nginx-rbd-test
+
+
+kubectl  get pod nginx-rbd-test -owide
+
+
+kubectl  exec nginx-rbd-test  mount |grep rbd
+
+
+
+
+
+查看  image
+策略  删除 pvc  会不会删除image
+
+
+kubect get pv 
+
+
+修改  storageClass
+
+reclaimPolicy :Retain
+
+
+
+kubect get pv persistentvolume/vpc
+
+
+pvc 手动指定使用哪个pv
+
+pvc  Lost
+
+
+创建pv  指定image
+
+
+
+
+
+
+
+
+
+
+

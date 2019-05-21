@@ -1,0 +1,33 @@
+cat >  sts-with-rbd.yaml  << EOF
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: web-sts
+spec:
+  serviceName: "nginx"
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+          name: web
+        volumeMounts:
+        - name: www
+          mountPath: /usr/share/nginx/html
+  volumeClaimTemplates:
+  - metadata:
+      name: www
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "dynamic-ceph-rdb"
+      resources:
+        requests:
+          storage: 50Mi
+EOF

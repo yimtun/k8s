@@ -1,0 +1,4 @@
+/etc/kubernetes/kubelet.config.json
+
+"clusterDomain": "cluster.local",
+  "clusterDNS": ["10.254.0.2"]

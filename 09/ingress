@@ -1,0 +1,15 @@
+mkdir  /ingress
+cd /ingress/
+
+
+curl https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/mandatory.yaml   > ./ingress-nginx.yaml
+
+
+docker pull registry.cn-qingdao.aliyuncs.com/kubernetes_xingej/nginx-ingress-controller:0.20.0
+
+kbectl delete damp  .  nginx
+
+kubectl get deployments.
+
+e
+
