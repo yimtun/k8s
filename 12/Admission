@@ -1,0 +1,14 @@
+[root@master01 ~]# cat /etc/systemd/system/kube-apiserver.service 
+[Unit]
+Description=Kubernetes API Server
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+After=network.target
+
+[Service]
+ExecStart=/opt/k8s/bin/kube-apiserver \
+  --enable-admission-plugins=Initializers,NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota \
+    --anonymous-auth=false 
+
+
+
+grep admission  /var/log/kubernetes/kube-apiserver.INFO 

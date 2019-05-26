@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: centos-tool
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.242
+  containers:
+  - name: main
+    image: centos
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: "20Mi"
+    command: ["dd","if=/dev/zero","of=/dev/null"]
+
+
+kubectl  exec -it centos-tool  bash
+
+yum install -y bind-utils
+
+
+[root@centos-tool /]# yum repolist
+Killed
+[root@centos-tool /]# 
+
+
+root@centos-tool yum.repos.d]# command terminated with exit code 137
+[root@master01 ~]# 
+
+
+

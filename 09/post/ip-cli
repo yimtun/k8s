@@ -1,0 +1,13 @@
+node01  node02
+
+ip link set dev kube-ipvs0 arp on
+
+
+NOARP 这个标志和其它的标志不同，它的含义和涉及的网络协议有关。
+它一般表示这个设备无需地址解析，软件或者硬件不必借助于系统协议栈的帮助就知道如何把数据包投递到目的地。 
+
+
+
+BROADCAST 这个设备具有把数据包发送到所有主机的能力。以太网连接是一个很典型的例子
+
+ip link set up kube-ipvs0

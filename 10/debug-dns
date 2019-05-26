@@ -2,3 +2,55 @@
 
 "clusterDomain": "cluster.local",
   "clusterDNS": ["10.254.0.2"]
+
+
+
+
+这个信息会写入容器 的  cat /etc/resolv.conf
+
+root@web-sts-1:/# cat /etc/resolv.conf 
+nameserver 10.254.0.2
+search default.svc.cluster.local. svc.cluster.local. cluster.local.
+options ndots:5
+不同命令空间的 访问方式会有不同
+
+
+同一个ns 可以是简写的方式  ping service_name
+
+
+
+
+不同 ns 
+ping  service_name.namespace.svc.domain
+
+domain 是体统的域名后缀  这里设置的事cluster.local
+
+ping  kubernetes-dashboard.kube-system.svc.cluster.local
+
+
+ping  kubernetes-dashboard.kube-system.svc.cluster.local
+PING kubernetes-dashboard.kube-system.svc.cluster.local (10.254.117.112) 56(84) bytes of data.
+64 bytes from kubernetes-dashboard.kube-system.svc.cluster.local (10.254.117.112): icmp_seq=1 ttl=64 time=0.121 ms
+64 bytes from kubernetes-dashboard.kube-system.svc.cluster.local (10.254.117.112): icmp_seq=2 ttl=64 time=0.118 ms
+64 bytes from kubernetes-dashboard.kube-system.svc.cluster.local (10.254.117.112): icmp_seq=3 ttl=64 time=0.144 ms
+64 bytes from kubernetes-dashboard.kube-system.svc.cluster.local (10.254.117.112): icmp_seq=4 ttl=64 time=0.099 ms
+
+
+
+不同ns  简写方式 ping  service_name.namespace
+
+
+
+ping  kubernetes-dashboard.kube-system
+PING kubernetes-dashboard.kube-system.svc.cluster.local (10.254.117.112) 56(84) bytes of data.
+64 bytes from kubernetes-dashboard.kube-system.svc.cluster.local (10.254.117.112): icmp_seq=1 ttl=64 time=0.111 ms
+64 bytes from kubernetes-dashboard.kube-system.svc.cluster.local (10.254.117.112): icmp_seq=2 ttl=64 time=0.105 ms
+64 bytes from kubernetes-dashboard.kube-system.svc.cluster.local (10.254.117.112): icmp_seq=3 ttl=64 time=0.081 ms
+
+
+
+
+服务发现 可以不使用dns
+
+
+

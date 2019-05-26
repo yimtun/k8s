@@ -1,0 +1,76 @@
+https://segmentfault.com/a/1190000016333317
+
+
+
+
+
+
+https://blog.csdn.net/qq_34463875/article/details/72730489
+
+与传统的IPVS DR模式配置不同的是，我们并未在承接流量的服务器上执行绑定VIP，再关闭ARP的操作。 那是因为对VIP的处理直接发生在iptables上，我们无需在服务器上运行程序来承接流量，iptables会将流量转发到对应的Pod上。
+
+
+
+
+
+
+
+iptables -t nat -nL
+Chain PREROUTING (policy ACCEPT)
+target     prot opt source               destination         
+KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            /* kubernetes service portals */
+DOCKER     all  --  0.0.0.0/0            0.0.0.0/0            ADDRTYPE match dst-type LOCAL
+
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination         
+
+Chain OUTPUT (policy ACCEPT)
+target     prot opt source               destination         
+KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            /* kubernetes service portals */
+DOCKER     all  --  0.0.0.0/0           !127.0.0.0/8          ADDRTYPE match dst-type LOCAL
+
+Chain POSTROUTING (policy ACCEPT)
+target     prot opt source               destination         
+MASQUERADE  all  --  172.30.57.0/24       0.0.0.0/0           
+KUBE-POSTROUTING  all  --  0.0.0.0/0            0.0.0.0/0            /* kubernetes postrouting rules */
+
+Chain DOCKER (2 references)
+target     prot opt source               destination         
+RETURN     all  --  0.0.0.0/0            0.0.0.0/0           
+
+Chain KUBE-FIREWALL (0 references)
+target     prot opt source               destination         
+KUBE-MARK-DROP  all  --  0.0.0.0/0            0.0.0.0/0           
+
+Chain KUBE-LOAD-BALANCER (0 references)
+target     prot opt source               destination         
+KUBE-MARK-MASQ  all  --  0.0.0.0/0            0.0.0.0/0           
+
+Chain KUBE-MARK-DROP (1 references)
+target     prot opt source               destination         
+MARK       all  --  0.0.0.0/0            0.0.0.0/0            MARK or 0x8000
+
+Chain KUBE-MARK-MASQ (3 references)
+target     prot opt source               destination         
+MARK       all  --  0.0.0.0/0            0.0.0.0/0            MARK or 0x4000
+
+Chain KUBE-NODE-PORT (1 references)
+target     prot opt source               destination         
+KUBE-MARK-MASQ  tcp  --  0.0.0.0/0            0.0.0.0/0            /* Kubernetes nodeport TCP port for masquerade purpose */ match-set KUBE-NODE-PORT-TCP dst
+
+Chain KUBE-POSTROUTING (1 references)
+target     prot opt source               destination         
+MASQUERADE  all  --  0.0.0.0/0            0.0.0.0/0            /* kubernetes service traffic requiring SNAT */ mark match 0x4000/0x4000
+MASQUERADE  all  --  0.0.0.0/0            0.0.0.0/0            /* Kubernetes endpoints dst ip:port, source ip for solving hairpin purpose */ match-set KUBE-LOOP-BACK dst,dst,src
+
+Chain KUBE-SERVICES (2 references)
+target     prot opt source               destination         
+KUBE-MARK-MASQ  all  -- !172.30.0.0/16        0.0.0.0/0            /* Kubernetes service cluster ip + port for masquerade purpose */ match-set KUBE-CLUSTER-IP dst,dst
+KUBE-NODE-PORT  all  --  0.0.0.0/0            0.0.0.0/0            ADDRTYPE match dst-type LOCAL
+ACCEPT     all  --  0.0.0.0/0            0.0.0.0/0            match-set KUBE-CLUSTER-IP dst,dst
+[root@node01 kubernetes]# 
+
+
+
+
+

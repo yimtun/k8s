@@ -1,0 +1,88 @@
+service  资源
+
+kube-proxy
+
+
+
+
+
+ipvsadm -Ln  | grep 10.254.0.2
+TCP  10.254.0.2:53 rr
+UDP  10.254.0.2:53 rr
+
+
+kubectl   -n kube-system  describe svc kube-dns 
+Name:              kube-dns
+Namespace:         kube-system
+Labels:            addonmanager.kubernetes.io/mode=Reconcile
+                   k8s-app=kube-dns
+                   kubernetes.io/cluster-service=true
+                   kubernetes.io/name=CoreDNS
+Annotations:       prometheus.io/port: 9153
+                   prometheus.io/scrape: true
+Selector:          k8s-app=kube-dns
+Type:              ClusterIP
+IP:                10.254.0.2
+Port:              dns  53/UDP
+TargetPort:        53/UDP
+Endpoints:         172.30.53.6:53
+Port:              dns-tcp  53/TCP
+TargetPort:        53/TCP
+Endpoints:         172.30.53.6:53
+Session Affinity:  None
+Events:            <none>
+
+
+ipvsadm -Ln  --stats
+
+
+
+[root@node01 ~]# ping 10.254.0.2
+PING 10.254.0.2 (10.254.0.2) 56(84) bytes of data.
+64 bytes from 10.254.0.2: icmp_seq=1 ttl=64 time=0.562 ms
+64 bytes from 10.254.0.2: icmp_seq=2 ttl=64 time=0.101 ms
+64 bytes from 10.254.0.2: icmp_seq=3 ttl=64 time=0.090 ms
+
+
+[root@node01 ~]# arp -a 10.254.0.2
+arp: in 10 entries no match found.
+
+不对arp 响应  
+
+[root@node01 ~]# cat /proc/sys/net/ipv4/conf/all/arp_ignore
+0
+
+cat /proc/sys/net/ipv4/conf/all/arp_announce 
+0
+
+
+掩码都是32位的 
+inet 10.254.0.2/32 brd 10.254.0.2 scope global kube-ipvs0
+
+
+
+
+telnet  10.254.0.2 53
+Trying 10.254.0.2...
+Connected to 10.254.0.2.
+Escape character is '^]'.
+Connection closed by foreign host.
+
+
+https://github.com/kubernetes/kubernetes/blob/master/cmd/kube-proxy/app/server.go
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

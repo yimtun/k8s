@@ -1,0 +1,18 @@
+创建测试用的 客户端
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: centos-tool
+spe:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.242
+  containers:
+  - name: main
+    image: centos
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: "20Mi"
+    command: ["dd","if=/dev/zero","of=/dev/null"]

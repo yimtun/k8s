@@ -1,0 +1,27 @@
+kube-ipvs0: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN group default 
+    link/ether 56:2b:c5:e8:ad:eb brd ff:ff:ff:ff:ff:ff
+    inet 10.254.5.137/32 brd 10.254.5.137 scope global kube-ipvs0
+       valid_lft forever preferred_lft forever
+    inet 10.254.0.1/32 brd 10.254.0.1 scope global kube-ipvs0
+       valid_lft forever preferred_lft forever
+    inet 10.254.12.191/32 brd 10.254.12.191 scope global kube-ipvs0
+       valid_lft forever preferred_lft forever
+    inet 10.254.104.129/32 brd 10.254.104.129 scope global kube-ipvs0
+       valid_lft forever preferred_lft forever
+    inet 10.254.0.2/32 brd 10.254.0.2 scope global kube-ipvs0
+       valid_lft forever preferred_lft forever
+    inet 10.254.242.115/32 brd 10.254.242.115 scope global kube-ipvs0
+       valid_lft forever preferred_lft forever
+    inet 10.254.117.112/32 brd 10.254.117.112 scope global kube-ipvs0
+       valid_lft forever preferred_lft forever
+    inet 10.254.20.153/32 brd 10.254.20.153 scope global kube-ipvs0
+       valid_lft forever preferred_lft forever
+    inet 10.254.208.224/32 brd 10.254.208.224 scope global kube-ipvs0
+       valid_lft forever preferred_lft forever
+    inet 10.254.129.235/32 brd 10.254.129.235 scope global kube-ipvs0
+       valid_lft forever preferred_lft forever
+
+
+https://www.sohu.com/a/242317972_467784
+
+

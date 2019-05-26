@@ -1,0 +1,89 @@
+kubectl  -n kube-system  get pod -o wide
+NAME                                    READY   STATUS    RESTARTS   AGE     IP            NODE             NOMINATED NODE
+coredns-779ffd89bd-d67z4                1/1     Running   0          7h19m   172.30.53.6   192.168.10.243   <none>
+
+
+192.168.10.243  node-2
+
+
+[root@node02 ~]# telnet  10.254.0.2 53
+Trying 10.254.0.2...
+Connected to 10.254.0.2.
+Escape character is '^]'.
+
+
+
+[root@node02 ~]# tcpdump -i any port 53
+21:34:38.626470 IP node02.42614 > 172.30.53.6.domain: Flags [S], seq 212045636, win 43690, options [mss 65495,sackOK,TS val 2244382797 ecr 0,nop,wscale 7], length 0
+21:34:38.626495 IP node02.42614 > 172.30.53.6.domain: Flags [S], seq 212045636, win 43690, options [mss 65495,sackOK,TS val 2244382797 ecr 0,nop,wscale 7], length 0
+21:34:38.626588 IP 172.30.53.6.domain > node02.42614: Flags [S.], seq 1952004728, ack 212045637, win 27960, options [mss 1410,sackOK,TS val 2244382797 ecr 2244382797,nop,wscale 7], length 0
+21:34:38.626601 IP 172.30.53.6.domain > node02.42614: Flags [S.], seq 1952004728, ack 212045637, win 27960, options [mss 1410,sackOK,TS val 2244382797 ecr 2244382797,nop,wscale 7], length 0
+21:34:38.626636 IP node02.42614 > 172.30.53.6.domain: Flags [.], ack 1, win 342, options [nop,nop,TS val 2244382797 ecr 2244382797], length 0
+21:34:38.626639 IP node02.42614 > 172.30.53.6.domain: Flags [.], ack 1, win 342, options [nop,nop,TS val 2244382797 ecr 2244382797], length 0
+21:34:40.627351 IP 172.30.53.6.domain > node02.42614: Flags [F.], seq 1, ack 1, win 219, options [nop,nop,TS val 2244384798 ecr 2244382797], length 0
+21:34:40.627402 IP 172.30.53.6.domain > node02.42614: Flags [F.], seq 1, ack 1, win 219, options [nop,nop,TS val 2244384798 ecr 2244382797], length 0
+21:34:40.627607 IP node02.42614 > 172.30.53.6.domain: Flags [F.], seq 1, ack 2, win 342, options [nop,nop,TS val 2244384798 ecr 2244384798], length 0
+21:34:40.627621 IP node02.42614 > 172.30.53.6.domain: Flags [F.], seq 1, ack 2, win 342, options [nop,nop,TS val 2244384798 ecr 2244384798], length 0
+21:34:40.627667 IP 172.30.53.6.domain > node02.42614: Flags [.], ack 2, win 219, options [nop,nop,TS val 2244384798 ecr 2244384798], length 0
+21:34:40.627676 IP 172.30.53.6.domain > node02.42614: Flags [.], ack 2, win 219, options [nop,nop,TS val 2244384798 ecr 2244384798], length 0
+
+
+
+
+
+[root@node01 ~]# telnet  10.254.0.2 53
+Trying 10.254.0.2...
+Connected to 10.254.0.2.
+Escape character is '^]'.
+Connection closed by foreign host.
+
+
+[root@node01 kubernetes]# ip a | grep flannel.1
+3: flannel.1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1450 qdisc noqueue state UNKNOWN group default 
+    inet 172.30.57.0/32 scope global flannel.1
+
+57.0  node01 进来流量
+
+
+
+[root@node02 ~]# tcpdump -i any port 53
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on any, link-type LINUX_SLL (Linux cooked), capture size 262144 bytes
+21:35:57.880099 IP 172.30.57.0.42530 > 172.30.53.6.domain: Flags [S], seq 43860986, win 43690, options [mss 65495,sackOK,TS val 34128910 ecr 0,nop,wscale 7], length 0
+21:35:57.880195 IP 172.30.57.0.42530 > 172.30.53.6.domain: Flags [S], seq 43860986, win 43690, options [mss 65495,sackOK,TS val 34128910 ecr 0,nop,wscale 7], length 0
+21:35:57.880202 IP 172.30.57.0.42530 > 172.30.53.6.domain: Flags [S], seq 43860986, win 43690, options [mss 65495,sackOK,TS val 34128910 ecr 0,nop,wscale 7], length 0
+21:35:57.880296 IP 172.30.53.6.domain > 172.30.57.0.42530: Flags [S.], seq 3648981624, ack 43860987, win 27960, options [mss 1410,sackOK,TS val 2244462051 ecr 34128910,nop,wscale 7], length 0
+21:35:57.880303 IP 172.30.53.6.domain > 172.30.57.0.42530: Flags [S.], seq 3648981624, ack 43860987, win 27960, options [mss 1410,sackOK,TS val 2244462051 ecr 34128910,nop,wscale 7], length 0
+21:35:57.880326 IP 172.30.53.6.domain > 172.30.57.0.42530: Flags [S.], seq 3648981624, ack 43860987, win 27960, options [mss 1410,sackOK,TS val 2244462051 ecr 34128910,nop,wscale 7], length 0
+21:35:57.880855 IP 172.30.57.0.42530 > 172.30.53.6.domain: Flags [.], ack 1, win 342, options [nop,nop,TS val 34128911 ecr 2244462051], length 0
+21:35:57.880866 IP 172.30.57.0.42530 > 172.30.53.6.domain: Flags [.], ack 1, win 342, options [nop,nop,TS val 34128911 ecr 2244462051], length 0
+21:35:57.880869 IP 172.30.57.0.42530 > 172.30.53.6.domain: Flags [.], ack 1, win 342, options [nop,nop,TS val 34128911 ecr 2244462051], length 0
+21:35:57.881495 IP node02.54862 > public1.114dns.com.domain: 50191+ PTR? 6.53.30.172.in-addr.arpa. (42)
+21:35:59.882576 IP 172.30.53.6.domain > 172.30.57.0.42530: Flags [F.], seq 1, ack 1, win 219, options [nop,nop,TS val 2244464053 ecr 34128911], length 0
+21:35:59.882639 IP 172.30.53.6.domain > 172.30.57.0.42530: Flags [F.], seq 1, ack 1, win 219, options [nop,nop,TS val 2244464053 ecr 34128911], length 0
+21:35:59.882679 IP 172.30.53.6.domain > 172.30.57.0.42530: Flags [F.], seq 1, ack 1, win 219, options [nop,nop,TS val 2244464053 ecr 34128911], length 0
+21:35:59.883756 IP 172.30.57.0.42530 > 172.30.53.6.domain: Flags [F.], seq 1, ack 2, win 342, options [nop,nop,TS val 34130914 ecr 2244464053], length 0
+21:35:59.883796 IP 172.30.57.0.42530 > 172.30.53.6.domain: Flags [F.], seq 1, ack 2, win 342, options [nop,nop,TS val 34130914 ecr 2244464053], length 0
+21:36:17.903204 IP node02.58820 > public1.114dns.com.domain: 60038+ PTR? 114.114.114.114.in-addr.arpa. (46)
+21:36:17.909090 IP public1.114dns.com.domain > node02.58820: 60038 1/0/0 PTR public1.114dns.com. (78)
+
+
+
+
+
+
+[root@node01 kubernetes]#  tcpdump -i any port 53
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on any, link-type LINUX_SLL (Linux cooked), capture size 262144 bytes
+21:35:56.557555 IP node01.42530 > 172.30.53.6.domain: Flags [S], seq 43860986, win 43690, options [mss 65495,sackOK,TS val 34128910 ecr 0,nop,wscale 7], length 0
+21:35:56.558301 IP 172.30.53.6.domain > node01.42530: Flags [S.], seq 3648981624, ack 43860987, win 27960, options [mss 1410,sackOK,TS val 2244462051 ecr 34128910,nop,wscale 7], length 0
+21:35:56.558444 IP node01.42530 > 172.30.53.6.domain: Flags [.], ack 1, win 342, options [nop,nop,TS val 34128911 ecr 2244462051], length 0
+21:35:56.559362 IP node01.46364 > public1.114dns.com.domain: 17647+ PTR? 6.53.30.172.in-addr.arpa. (42)
+21:35:58.560942 IP 172.30.53.6.domain > node01.42530: Flags [F.], seq 1, ack 1, win 219, options [nop,nop,TS val 2244464053 ecr 34128911], length 0
+21:35:58.561235 IP node01.42530 > 172.30.53.6.domain: Flags [F.], seq 1, ack 2, win 342, options [nop,nop,TS val 34130914 ecr 2244464053], length 0
+21:35:58.562010 IP 172.30.53.6.domain > node01.42530: Flags [.], ack 2, win 219, options [nop,nop,TS val 2244464054 ecr 34130914], length 0
+21:36:01.559898 IP node01.46364 > public1.114dns.com.domain: 17647+ PTR? 6.53.30.172.in-addr.arpa. (42)
+21:36:06.571833 IP node01.56169 > public1.114dns.com.domain: 46397+ PTR? 0.57.30.172.in-addr.arpa. (42)
+21:36:11.577211 IP node01.56169 > public1.114dns.com.domain: 46397+ PTR? 0.57.30.172.in-addr.arpa. (42)
+21:36:16.585654 IP node01.45228 > public1.114dns.com.domain: 8339+ PTR? 114.114.114.114.in-addr.arpa. (46)
+21:36:16.590960 IP public1.114dns.com.domain > node01.45228: 8339 1/0/0 PTR public1.114dns.com. (78)

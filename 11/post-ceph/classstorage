@@ -240,3 +240,17 @@ root@web-sts-777-0:/#
 
 
 
+kubectl  get pod -o wide
+NAME                       READY   STATUS    RESTARTS   AGE     IP             NODE             NOMINATED NODE
+limit-pod                  1/1     Running   0          4d12h   172.30.4.2     192.168.10.242   <none>
+my-nginx-c56566c77-drv6t   1/1     Running   0          3d13h   172.30.53.9    192.168.10.243   <none>
+my-nginx-c56566c77-s67p9   1/1     Running   0          3d13h   172.30.4.7     192.168.10.242   <none>
+nginx                      1/1     Running   0          3d13h   172.30.4.5     192.168.10.242   <none>
+nginx-rbd-test-1           1/1     Running   0          12h     172.30.4.8     192.168.10.242   <none>
+nginx-static-pv-test       1/1     Running   0          12h     172.30.4.3     192.168.10.242   <none>
+web-sts-0                  1/1     Running   0          2d20h   172.30.4.4     192.168.10.242   <none>
+web-sts-1                  1/1     Running   0          2d20h   172.30.53.10   192.168.10.243   <none>
+web-sts-777-0              1/1     Running   0          12h     172.30.4.9     192.168.10.242   <none>
+web-sts-777-1              1/1     Running   0          12h     172.30.53.11   192.168.10.243   <none>
+
+

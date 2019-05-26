@@ -1,0 +1,6 @@
+iptables -t nat -nL
+
+
+iptables -t nat -L KUBE-SERVICES -n
+
+

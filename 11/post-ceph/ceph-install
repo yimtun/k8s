@@ -109,11 +109,12 @@ ceph osd lspools
 vim /etc/ceph/ceph.conf 
 [mon] 
 mon allow pool delete = true
-
-
 systemctl restart ceph-mon.target
 ceph osd pool delete  bmw  bmw --yes-i-really-really-mean-it
 pool 'bmw' removed
+
+
+
 
 
 
@@ -211,60 +212,4 @@ ceph -s
     objects: 5 objects, 70B
     usage:   1.00GiB used, 19.0GiB / 20.0GiB avail
     pgs:     32 active+clean
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

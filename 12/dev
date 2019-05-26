@@ -1,0 +1,45 @@
+断开 ceph  重试几次
+
+阉割掉  --all-namespace
+
+
+kubectl  label node 192.168.10.242 cpu-oversold=2
+
+
+kubectl  label nodes  192.168.10.242 cpu-oversold=2
+
+
+
+"strconv"
+
+
+/pkg/kubelet/nodestatus/setters.go
+
+
+for rName, rCap := range cadvisor.CapacityFromMachineInfo(info) {
+                                if rName == v1.ResourceCPU {
+                                        if oversold, ok := node.Labels["cpu-oversold"]; ok {
+                                                oversoldFloat, err := strconv.ParseFloat(oversold, 64)
+                                                if err != nil {
+                                                        glog.Errorf("Error getting cpu oversold %v", err)
+                                                } else {
+                                                        switch {
+                                                        case oversoldFloat > float64(2):
+                                                                oversoldFloat = float64(2)
+                                                        case oversoldFloat < float64(1):
+                                                                oversoldFloat = float64(1)
+                                                        }
+                                                        oversoldResult := int64(oversoldFloat * float64(rCap.Value()))
+                                                        if oversoldResult > rCap.Value() {
+                                                                rCap.Set(oversoldResult)
+                                                        }
+                                                }
+                                        }
+                                }
+                                node.Status.Capacity[rName] = rCap
+                        }
+
+
+
+
+

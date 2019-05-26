@@ -1,0 +1,284 @@
+创建测试用的 客户端
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: limit-pod
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.242
+  containers:
+  - name: main
+    image: busybox
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: "20Mi"
+    command: ["dd","if=/dev/zero","of=/dev/null"]
+
+
+
+
+
+
+
+
+
+
+
+创建  ReplicaSet   简写是rs
+
+
+
+kubectl  api-resources  -o wide | grep ReplicaSet
+replicasets                       rs           apps                           true         ReplicaSet
+
+
+kubectl  get rs | grep kubia
+kubia                1         1         1       5m33s
+
+
+
+
+apiVersion: apps/v1beta2
+kind: ReplicaSet
+metadata:
+  name: kubia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia
+        image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+
+
+
+创建svc
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia
+spec:
+  clusterIP: 10.254.129.235
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: kubia
+  sessionAffinity: None
+  type: ClusterIP
+
+
+
+测试解析
+
+kubectl  exec limit-pod  -- nslookup    kubia
+Server:		10.254.0.2
+Address:	10.254.0.2:53
+
+Name:	kubia.default.svc.cluster.local
+Address: 10.254.129.235
+
+*** Can't find kubia.svc.cluster.local.: No answer
+*** Can't find kubia.cluster.local.: No answer
+*** Can't find kubia.default.svc.cluster.local.: No answer
+*** Can't find kubia.svc.cluster.local.: No answer
+*** Can't find kubia.cluster.local.: No answer
+
+
+
+
+
+kubectl  exec limit-pod  -- nslookup    kubia
+Server:		10.254.0.2
+Address:	10.254.0.2:53
+
+** server can't find kubia.default.svc.cluster.local.: NXDOMAIN
+
+*** Can't find kubia.svc.cluster.local.: No answer
+*** Can't find kubia.cluster.local.: No answer
+*** Can't find kubia.default.svc.cluster.local.: No answer
+*** Can't find kubia.svc.cluster.local.: No answer
+*** Can't find kubia.cluster.local.: No answer
+
+
+
+[root@master01 ~]# kubectl  exec -it  web-sts-0  bash
+root@web-sts-0:/# ping kubia
+PING kubia.default.svc.cluster.local (10.254.129.235) 56(84) bytes of data.
+64 bytes from kubia.default.svc.cluster.local (10.254.129.235): icmp_seq=1 ttl=64 time=0.147 ms
+64 bytes from kubia.default.svc.cluster.local (10.254.129.235): icmp_seq=2 ttl=64 time=0.126 ms
+^C
+--- kubia.default.svc.cluster.local ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1001ms
+rtt min/avg/max/mdev = 0.126/0.136/0.147/0.015 ms
+
+
+
+
+kubectl  exec limit-pod  -- nslookup    kubia
+Server:		10.254.0.2
+Address:	10.254.0.2:53
+
+Name:	kubia.default.svc.cluster.local
+Address: 10.254.129.235
+
+*** Can't find kubia.svc.cluster.local.: No answer
+*** Can't find kubia.cluster.local.: No answer
+*** Can't find kubia.default.svc.cluster.local.: No answer
+*** Can't find kubia.svc.cluster.local.: No answer
+*** Can't find kubia.cluster.local.: No answer
+
+
+
+kubectl  get svc -o wide
+NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE   SELECTOR
+kubernetes   ClusterIP   10.254.0.1       <none>        443/TCP   32d   <none>
+kubia        ClusterIP   10.254.129.235   <none>        80/TCP    13m   app=kubia
+
+
+dns 解析的事 CluseerIP
+
+
+kubia-svc-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia-headless
+spec:
+  clusterIP: None
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: kubia
+
+
+kubectl  get svc 
+NAME             TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+kubernetes       ClusterIP   10.254.0.1       <none>        443/TCP   32d
+kubia            ClusterIP   10.254.129.235   <none>        80/TCP    15m
+kubia-headless   ClusterIP   None             <none>        80/TCP    6s
+
+
+ClusterIP 为none
+
+kubectl  exec limit-pod  -- nslookup kubia-headless
+
+kubectl  exec -it web-sts-0  bash
+root@web-sts-0:/# ping kubia-headless
+PING kubia-headless.default.svc.cluster.local (172.30.57.6) 56(84) bytes of data.
+64 bytes from 172-30-57-6.kubia.default.svc.cluster.local (172.30.57.6): icmp_seq=1 ttl=64 time=0.668 ms
+64 bytes from 172-30-57-6.kubia.default.svc.cluster.local (172.30.57.6): icmp_seq=2 ttl=64 time=0.164 ms
+64 bytes from 172-30-57-6.kubia.default.svc.cluster.local (172.30.57.6): icmp_seq=3 ttl=64 time=0.133 ms
+c64 bytes from 172-30-57-6.kubia.default.svc.cluster.local (172.30.57.6): icmp_seq=4 ttl=64 time=0.171 ms
+
+
+
+kubectl  exec limit-pod  -- nslookup kubia-headless
+Server:		10.254.0.2
+Address:	10.254.0.2:53
+
+Name:	kubia-headless.default.svc.cluster.local
+Address: 172.30.57.6
+
+*** Can't find kubia-headless.svc.cluster.local.: No answer
+*** Can't find kubia-headless.cluster.local.: No answer
+*** Can't find kubia-headless.default.svc.cluster.local.: No answer
+*** Can't find kubia-headless.svc.cluster.local.: No answer
+*** Can't find kubia-headless.cluster.local.: No answer
+
+
+
+kubectl  get endpoints 
+NAME             ENDPOINTS             AGE
+kubernetes       192.168.10.232:6443   32d
+kubia            172.30.57.6:8080      19m
+kubia-headless   172.30.57.6:8080      3m19s
+
+
+
+两个 svc 后端的 pod  可以一样
+
+
+
+
+
+[root@master01 ~]# kubectl  exec  -it web-sts-0  bash 
+root@web-sts-0:/# ping kubia-headless.default.svc.cluster.local
+PING kubia-headless.default.svc.cluster.local (172.30.57.6) 56(84) bytes of data.
+64 bytes from 172-30-57-6.kubia.default.svc.cluster.local (172.30.57.6): icmp_seq=1 ttl=64 time=0.339 ms
+64 bytes from 172-30-57-6.kubia.default.svc.cluster.local (172.30.57.6): icmp_seq=2 ttl=64 time=0.168 ms
+^C
+--- kubia-headless.default.svc.cluster.local ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1001ms
+rtt min/avg/max/mdev = 0.168/0.253/0.339/0.086 ms
+
+
+[root@master01 ~]# kubectl  exec -it limit-pod  sh
+/ # pi
+pidof          ping           ping6          pipe_progress  pivot_root
+/ # ping kubia-headless.default.svc.cluster.local
+PING kubia-headless.default.svc.cluster.local (172.30.57.6): 56 data bytes
+64 bytes from 172.30.57.6: seq=0 ttl=64 time=0.451 ms
+64 bytes from 172.30.57.6: seq=1 ttl=64 time=0.213 ms
+64 bytes from 172.30.57.6: seq=2 ttl=64 time=0.231 ms
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+kubectl  exec limit-pod  -- nslookup    kubia
+Server:		10.254.0.2
+Address:	10.254.0.2:53
+
+Name:	kubia.default.svc.cluster.local
+Address: 10.254.129.235
+
+*** Can't find kubia.svc.cluster.local.: No answer
+*** Can't find kubia.cluster.local.: No answer
+*** Can't find kubia.default.svc.cluster.local.: No answer
+*** Can't find kubia.svc.cluster.local.: No answer
+*** Can't find kubia.cluster.local.: No answer

@@ -1,0 +1,147 @@
+master01
+
+[root@master01 ~]# ping 172.30.57.6
+PING 172.30.57.6 (172.30.57.6) 56(84) bytes of data.
+64 bytes from 172.30.57.6: icmp_seq=1 ttl=63 time=0.916 ms
+64 bytes from 172.30.57.6: icmp_seq=2 ttl=63 time=0.513 ms
+^C
+--- 172.30.57.6 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1000ms
+rtt min/avg/max/mdev = 0.513/0.714/0.916/0.203 ms
+[root@master01 ~]# ping 10.254.0.2
+PING 10.254.0.2 (10.254.0.2) 56(84) bytes of data.
+^C
+--- 10.254.0.2 ping statistics ---
+128 packets transmitted, 0 received, 100% packet loss, time 126999ms
+
+
+
+node01
+
+ping 172.30.57.6
+PING 172.30.57.6 (172.30.57.6) 56(84) bytes of data.
+64 bytes from 172.30.57.6: icmp_seq=1 ttl=64 time=0.156 ms
+^C
+--- 172.30.57.6 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 0.156/0.156/0.156/0.000 ms
+
+
+[root@node01 ~]# ping 10.254.0.2
+PING 10.254.0.2 (10.254.0.2) 56(84) bytes of data.
+64 bytes from 10.254.0.2: icmp_seq=1 ttl=64 time=0.116 ms
+64 bytes from 10.254.0.2: icmp_seq=2 ttl=64 time=0.088 ms
+
+
+
+
+[root@node01 ~]# ip a | grep kube-ipvs
+5: kube-ipvs0: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN group default 
+    inet 10.254.5.137/32 brd 10.254.5.137 scope global kube-ipvs0
+    inet 10.254.0.1/32 brd 10.254.0.1 scope global kube-ipvs0
+    inet 10.254.12.191/32 brd 10.254.12.191 scope global kube-ipvs0
+    inet 10.254.104.129/32 brd 10.254.104.129 scope global kube-ipvs0
+    inet 10.254.0.2/32 brd 10.254.0.2 scope global kube-ipvs0
+    inet 10.254.242.115/32 brd 10.254.242.115 scope global kube-ipvs0
+    inet 10.254.117.112/32 brd 10.254.117.112 scope global kube-ipvs0
+    inet 10.254.20.153/32 brd 10.254.20.153 scope global kube-ipvs0
+    inet 10.254.208.224/32 brd 10.254.208.224 scope global kube-ipvs0
+    inet 10.254.129.235/32 brd 10.254.129.235 scope global kube-ipvs0
+
+
+node02
+
+
+ip a | grep kube-ipvs
+6: kube-ipvs0: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN group default 
+    inet 10.254.117.112/32 brd 10.254.117.112 scope global kube-ipvs0
+    inet 10.254.20.153/32 brd 10.254.20.153 scope global kube-ipvs0
+    inet 10.254.104.129/32 brd 10.254.104.129 scope global kube-ipvs0
+    inet 10.254.242.115/32 brd 10.254.242.115 scope global kube-ipvs0
+    inet 10.254.5.137/32 brd 10.254.5.137 scope global kube-ipvs0
+    inet 10.254.0.2/32 brd 10.254.0.2 scope global kube-ipvs0
+    inet 10.254.12.191/32 brd 10.254.12.191 scope global kube-ipvs0
+    inet 10.254.0.1/32 brd 10.254.0.1 scope global kube-ipvs0
+    inet 10.254.208.224/32 brd 10.254.208.224 scope global kube-ipvs0
+    inet 10.254.129.235/32 brd 10.254.129.235 scope global kube-ipvs0
+
+
+
+node2 上测试 coredns
+
+yum install -y bind-utils
+
+nslookup  kubia-headless.default.svc.cluster.local   10.254.0.2
+Server:		10.254.0.2
+Address:	10.254.0.2#53
+
+Name:	kubia-headless.default.svc.cluster.local
+Address: 172.30.57.6
+
+
+master01
+
+kubectl  get svc -n kube-system 
+NAME                   TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)         AGE
+heapster               ClusterIP   10.254.5.137     <none>        80/TCP          32d
+kube-dns               ClusterIP   10.254.0.2       <none>        53/UDP,53/TCP   32d
+kubernetes-dashboard   NodePort    10.254.117.112   <none>        443:33531/TCP   32d
+monitoring-grafana     NodePort    10.254.20.153    <none>        80:51420/TCP    32d
+monitoring-influxdb    ClusterIP   10.254.12.191    <none>        8086/TCP        32d
+
+node02
+
+nslookup  heapster.kube-system.svc.cluster.local   10.254.0.2
+
+
+nslookup  heapster.kube-system.svc.cluster.local   10.254.0.2
+Server:		10.254.0.2
+Address:	10.254.0.2#53
+
+Name:	heapster.kube-system.svc.cluster.local
+Address: 10.254.5.137
+
+
+
+
+
+nslookup  heapster.kube-system   10.254.0.2
+Server:		10.254.0.2
+Address:	10.254.0.2#53
+
+** server can't find heapster.kube-system: NXDOMAIN
+
+
+可以修改node01 的配置   添加一行即可
+
+search default.svc.cluster.local. svc.cluster.local. cluster.local.
+
+cat /etc/resolv.conf 
+nameserver 114.114.114.114
+search default.svc.cluster.local. svc.cluster.local. cluster.local.
+
+
+
+
+
+
+
+nslookup  heapster.kube-system   10.254.0.2
+Server:		10.254.0.2
+Address:	10.254.0.2#53
+
+Name:	heapster.kube-system.svc.cluster.local
+Address: 10.254.5.137
+
+
+
+
+
+
+
+
+
+
+
+
+node02
