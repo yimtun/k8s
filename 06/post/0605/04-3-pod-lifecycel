@@ -1,0 +1,146 @@
+type Object struct {
+    metav1.TypeMeta `json:",inline"`
+    metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+    Spec ObjectSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
+    Status ObjectStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
+}
+
+
+
+
+
+kubectl  get pod web-sts-0 -o yaml
+
+status:
+  conditions:
+  - lastProbeTime: null
+    lastTransitionTime: 2019-05-28T08:06:32Z
+    status: "True"
+    type: Initialized
+  - lastProbeTime: null
+    lastTransitionTime: 2019-05-28T08:06:36Z
+    status: "True"
+    type: Ready
+  - lastProbeTime: null
+    lastTransitionTime: 2019-05-28T08:06:36Z
+    status: "True"
+    type: ContainersReady
+  - lastProbeTime: null
+    lastTransitionTime: 2019-05-28T08:06:32Z
+    status: "True"
+    type: PodScheduled
+  containerStatuses:
+  - containerID: docker://13252446c3b91188654d9fa9941b0583c0f5779929afece79c7e0d6958794b30
+    image: nginx:latest
+    imageID: docker-pullable://nginx@sha256:23b4dcdf0d34d4a129755fc6f52e1c6e23bb34ea011b315d87e193033bcd1b68
+    lastState: {}
+    name: nginx
+    ready: true
+    restartCount: 0
+    state:
+      running:
+        startedAt: 2019-05-28T08:06:36Z
+  hostIP: 192.168.10.243
+  phase: Running
+  podIP: 172.30.53.21
+  qosClass: BestEffort
+  startTime: 2019-05-28T08:06:32Z
+
+
+status  object 
+
+
+
+kubectl  get pod web-sts-0 -o yaml  | grep phase
+  phase: Running
+
+
+Pod 有一个 PodStatus 对象，其中包含一个 PodCondition 数组
+
+
+Initialized：所有的init container已经成功启动。   ???
+
+
+
+OnFailure 使用与job ???
+
+
+
+kubectl  get pod
+RESTARTS 重启次数
+
+
+
+
+
+
+
+bare pod  不等于 静态容器
+
+[root@master01 ~]# kubectl  describe  pod kubia-mtghr   | grep "Container ID"
+    Container ID:   docker://aa7809164af754f3566579d7b7cc42448602e4eeab8f06de039283fb027cbcf1
+
+
+kubectl  describe  pod kubia-mtghr   | grep Node
+Node:               192.168.10.243/192.168.10.243
+Node-Selectors:  <none>
+
+
+[root@node02 ~]# docker ps  -q | grep aa7809164
+aa7809164af7
+
+
+[root@node02 ~]# docker inspect aa7809164af7
+
+docker inspect aa7809164af7
+
+
+"RestartPolicy": {
+                "Name": "",
+                "MaximumRetryCount": 0
+            },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 

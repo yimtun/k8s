@@ -1,0 +1,357 @@
+kubectl proxy --port=80 --address="0.0.0.0"
+
+http1
+
+关掉非安全的端口
+
+打开的话 也是http1.0 性能也慢
+
+controlle  scheduler 会使用 http 端口访问 api server
+但是只限于本地  线上配置 api server。 controler scheduler  是通过vip 
+访问api server 的
+
+kubectl convert 升级时可能会用到  降 api server 版本时
+
+
+
+cordon  
+
+kubectl  get node
+NAME             STATUS   ROLES    AGE   VERSION
+192.168.10.242   Ready    <none>   38d   v1.12.0-rc.2
+192.168.10.243   Ready    <none>   38d   v1.12.0-rc.2
+[root@master01 ~]# kubectl  cordon 192.168.10.242 
+node/192.168.10.242 cordoned
+[root@master01 ~]# kubectl  get node
+NAME             STATUS                     ROLES    AGE   VERSION
+192.168.10.242   Ready,SchedulingDisabled   <none>   38d   v1.12.0-rc.2
+192.168.10.243   Ready                      <none>   38d   v1.12.0-rc.2
+
+
+kubectl describe node  192.168.10.242
+Taints:             node.kubernetes.io/unschedulable:NoSchedule
+
+
+
+
+kubectl  uncordon 192.168.10.242
+
+kubectl describe node  192.168.10.242
+
+Taints:             <none>
+
+
+
+
+
+[root@master01 ~]# kubectl  get po -o wide
+NAME                        READY   STATUS    RESTARTS   AGE     IP             NODE             NOMINATED NODE
+backend-65cc7648f7-5zc7r    1/1     Running   1          64m     172.30.53.14   192.168.10.243   <none>
+bmw-gpu-node-affinity       1/1     Running   0          2d1h    172.30.53.12   192.168.10.243   <none>
+frontend-859f886dfc-jmn4v   1/1     Running   0          64m     172.30.53.15   192.168.10.243   <none>
+frontend-859f886dfc-tnwbf   1/1     Running   0          64m     172.30.53.18   192.168.10.243   <none>
+kubia-mtghr                 1/1     Running   0          64m     172.30.53.19   192.168.10.243   <none>
+my-nginx-c56566c77-2fn2p    1/1     Running   0          64m     172.30.53.17   192.168.10.243   <none>
+my-nginx-c56566c77-54qs2    1/1     Running   0          95m     172.30.53.13   192.168.10.243   <none>
+web-sts-0                   1/1     Running   0          58m     172.30.57.2    192.168.10.242   <none>
+web-sts-1                   1/1     Running   0          9d      172.30.53.10   192.168.10.243   <none>
+web-sts-777-0               1/1     Running   0          60m     172.30.53.20   192.168.10.243   <none>
+web-sts-777-1               1/1     Running   0          6d16h   172.30.53.11   192.168.10.243   <none>
+
+[root@master01 ~]# kubectl  drain  192.168.10.242 
+node/192.168.10.242 cordoned
+pod/web-sts-0 evicted
+
+
+[root@master01 ~]# kubectl  get po -o wide
+NAME                        READY   STATUS    RESTARTS   AGE     IP             NODE             NOMINATED NODE
+backend-65cc7648f7-5zc7r    1/1     Running   1          65m     172.30.53.14   192.168.10.243   <none>
+bmw-gpu-node-affinity       1/1     Running   0          2d1h    172.30.53.12   192.168.10.243   <none>
+frontend-859f886dfc-jmn4v   1/1     Running   0          65m     172.30.53.15   192.168.10.243   <none>
+frontend-859f886dfc-tnwbf   1/1     Running   0          65m     172.30.53.18   192.168.10.243   <none>
+kubia-mtghr                 1/1     Running   0          65m     172.30.53.19   192.168.10.243   <none>
+my-nginx-c56566c77-2fn2p    1/1     Running   0          65m     172.30.53.17   192.168.10.243   <none>
+my-nginx-c56566c77-54qs2    1/1     Running   0          96m     172.30.53.13   192.168.10.243   <none>
+web-sts-0                   1/1     Running   0          8s      172.30.53.21   192.168.10.243   <none>
+web-sts-1                   1/1     Running   0          9d      172.30.53.10   192.168.10.243   <none>
+web-sts-777-0               1/1     Running   0          61m     172.30.53.20   192.168.10.243   <none>
+web-sts-777-1               1/1     Running   0          6d16h   172.30.53.11   192.168.10.243   <none>
+[root@master01 ~]# 
+
+
+drain  时如果有 bare  pod  需要  --force 
+
+
+kubectl  get node
+NAME             STATUS                     ROLES    AGE   VERSION
+192.168.10.242   Ready,SchedulingDisabled   <none>   38d   v1.12.0-rc.2
+192.168.10.243   Ready                      <none>   38d   v1.12.0-rc.2
+
+
+
+[root@master01 ~]# kubectl  uncordon  192.168.10.242
+node/192.168.10.242 uncordoned
+[root@master01 ~]# kubectl  get node
+NAME             STATUS   ROLES    AGE   VERSION
+192.168.10.242   Ready    <none>   38d   v1.12.0-rc.2
+192.168.10.243   Ready    <none>   38d   v1.12.0-rc.2
+[root@master01 ~]# 
+
+
+
+kubectl  version 
+Client Version: version.Info{Major:"1", Minor:"12+", GitVersion:"v1.12.0-rc.2", GitCommit:"5a80e28431c7469d677c5b17277266d1da4e5c8d", GitTreeState:"clean", BuildDate:"2018-09-21T22:03:03Z", GoVersion:"go1.10.4", Compiler:"gc", Platform:"linux/amd64"}
+
+Server Version: version.Info{Major:"1", Minor:"12+", GitVersion:"v1.12.0-rc.2", GitCommit:"5a80e28431c7469d677c5b17277266d1da4e5c8d", GitTreeState:"clean", BuildDate:"2018-09-21T21:52:36Z", GoVersion:"go1.10.4", Compiler:"gc", Platform:"linux/amd64"}
+
+
+
+
+
+
+annotate   用户自定义的  用户信息 联系人  ？
+
+
+
+不指定 restart policy 默认就是 Deployment
+
+
+kubectl run --image=nginx my-deploy -o yaml --dry-run 
+kubectl run --generator=deployment/apps.v1beta1 is DEPRECATED and will be removed in a future version. Use kubectl create instead.
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    run: my-deploy
+  name: my-deploy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: my-deploy
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        run: my-deploy
+    spec:
+      containers:
+      - image: nginx
+        name: my-deploy
+        resources: {}
+status: {}
+
+
+指定  --restart=Never  kind就是一个 Pod
+
+kubectl run --image=nginx --restart=Never my-deploy -o yaml --dry-run 
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: my-deploy
+  name: my-deploy
+spec:
+  containers:
+  - image: nginx
+    name: my-deploy
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Never
+status: {}
+
+
+kubectl run --image=nginx --restart=Never --image-pull-policy=IfNotPresent my-deploy -o yaml --dry-run 
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: my-deploy
+  name: my-deploy
+spec:
+  containers:
+  - image: nginx
+    imagePullPolicy: IfNotPresent
+    name: my-deploy
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Never
+status: {}
+
+
+
+
+
+[root@master01 ~]# kubectl run --image=nginx --restart=Never --image-pull-policy=ifNotPresent my-deploy -o yaml --dry-run 
+error: invalid image pull policy: ifNotPresent
+See 'kubectl run -h' for help and examples.
+[root@master01 ~]# 
+
+
+kubectl  explain pod.spec.containers
+
+
+
+[root@master01 ~]# kubectl  explain pod.spec.containers.imagePullPolicy
+KIND:     Pod
+VERSION:  v1
+
+FIELD:    imagePullPolicy <string>
+
+DESCRIPTION:
+     Image pull policy. One of Always, Never, IfNotPresent. Defaults to Always
+     if :latest tag is specified, or IfNotPresent otherwise. Cannot be updated.
+     More info:
+     https://kubernetes.io/docs/concepts/containers/images#updating-images
+
+
+
+
+去掉多余的信息
+
+kubectl get statefulset/nginx -o=yaml --export > nginx.yaml
+
+
+kubectl explain pod.spec.affinity
+KIND:     Pod
+VERSION:  v1
+
+RESOURCE: affinity <Object>
+
+DESCRIPTION:
+     If specified, the pod's scheduling constraints
+
+     Affinity is a group of affinity scheduling rules.
+
+FIELDS:
+   nodeAffinity	<Object>
+     Describes node affinity scheduling rules for the pod.
+
+   podAffinity	<Object>
+     Describes pod affinity scheduling rules (e.g. co-locate this pod in the
+     same node, zone, etc. as some other pod(s)).
+
+   podAntiAffinity	<Object>
+     Describes pod anti-affinity scheduling rules (e.g. avoid putting this pod
+     in the same node, zone, etc. as some other pod(s)).
+
+
+
+[root@master01 ~]# kubectl explain pod
+KIND:     Pod
+VERSION:  v1
+
+DESCRIPTION:
+     Pod is a collection of containers that can run on a host. This resource is
+     created by clients and scheduled onto hosts.
+
+FIELDS:
+   apiVersion	<string>
+     APIVersion defines the versioned schema of this representation of an
+     object. Servers should convert recognized schemas to the latest internal
+     value, and may reject unrecognized values. More info:
+     https://git.k8s.io/community/contributors/devel/api-conventions.md#resources
+
+   kind	<string>
+     Kind is a string value representing the REST resource this object
+     represents. Servers may infer this from the endpoint the client submits
+     requests to. Cannot be updated. In CamelCase. More info:
+     https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
+
+   metadata	<Object>
+     Standard object's metadata. More info:
+     https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata
+
+   spec	<Object>
+     Specification of the desired behavior of the pod. More info:
+     https://git.k8s.io/community/contributors/devel/api-conventions.md#spec-and-status
+
+   status	<Object>
+     Most recently observed status of the pod. This data may not be up to date.
+     Populated by the system. Read-only. More info:
+     https://git.k8s.io/community/contributors/devel/api-conventions.md#spec-and-status
+
+
+
+[root@master01 ~]# kubectl explain deploy
+KIND:     Deployment
+VERSION:  extensions/v1beta1
+
+DESCRIPTION:
+     DEPRECATED - This group version of Deployment is deprecated by
+     apps/v1beta2/Deployment. See the release notes for more information.
+     Deployment enables declarative updates for Pods and ReplicaSets.
+
+FIELDS:
+   apiVersion	<string>
+     APIVersion defines the versioned schema of this representation of an
+     object. Servers should convert recognized schemas to the latest internal
+     value, and may reject unrecognized values. More info:
+     https://git.k8s.io/community/contributors/devel/api-conventions.md#resources
+
+   kind	<string>
+     Kind is a string value representing the REST resource this object
+     represents. Servers may infer this from the endpoint the client submits
+     requests to. Cannot be updated. In CamelCase. More info:
+     https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
+
+   metadata	<Object>
+     Standard object metadata.
+
+   spec	<Object>
+     Specification of the desired behavior of the Deployment.
+
+   status	<Object>
+     Most recently observed status of the Deployment.
+
+
+
+
+
+
+[root@master01 ~]# kubectl explain sts
+KIND:     StatefulSet
+VERSION:  apps/v1
+
+DESCRIPTION:
+     StatefulSet represents a set of pods with consistent identities. Identities
+     are defined as: - Network: A single stable DNS and hostname. - Storage: As
+     many VolumeClaims as requested. The StatefulSet guarantees that a given
+     network identity will always map to the same storage identity.
+
+FIELDS:
+   apiVersion	<string>
+     APIVersion defines the versioned schema of this representation of an
+     object. Servers should convert recognized schemas to the latest internal
+     value, and may reject unrecognized values. More info:
+     https://git.k8s.io/community/contributors/devel/api-conventions.md#resources
+
+   kind	<string>
+     Kind is a string value representing the REST resource this object
+     represents. Servers may infer this from the endpoint the client submits
+     requests to. Cannot be updated. In CamelCase. More info:
+     https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
+
+   metadata	<Object>
+
+   spec	<Object>
+     Spec defines the desired identities of pods in this set.
+
+   status	<Object>
+     Status is the current status of Pods in this StatefulSet. This data may be
+     out of date by some window of time.
+
+
+
+
+
+
+
+
+
+
+

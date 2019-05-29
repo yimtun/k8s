@@ -1,0 +1,264 @@
+sidecar  边车容器  采集日志
+
+
+bare pod  
+
+热path  升级
+
+kubectl run 快速创建一个pod
+
+kubectl run --image=nginx --restart=Never --image-pull-policy=IfNotPresent my-deploy  --dry-run 
+
+
+线上集群500台 平均每天会有一台下线维护  kubectl drain	 node
+
+尽量打热  path   更换内核就需要重启了 
+
+bare pod
+
+可以为bare pod  单独开发一个controller
+
+
+常用
+Deployment   StatefulSet 
+无状态        有状态
+
+DaemonSet  系统级别 管理的 控制器 工具类的 pod  
+
+
+
+template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+
+
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+
+
+
+template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+
+
+
+
+template:
+    metadata:
+    labels:
+    app: myapp
+spec:
+  containers:
+  - name: myapp-container
+    image: busybox
+    command: ['sh', '-c', 'echo Hello Kubernetes! && sleep 3600']
+
+
+
+问题
+14:25 
+
+1  pod  发布更新  释放资源被占用 重新创建时 没有回到原来的node   没有可调度的地方了
+
+
+
+
+
+2  实际使用率 空闲大  但是调度不上来了 应该怎么做
+
+
+
+
+3 kubelet 启动失败 restart 是always    restart 是资源不会被完整的释放  如果你个node 上有多个 容器 不断重启 占用大量资源
+   dockerd 资源不会被完全释放
+
+
+
+
+
+4  scheduler  调度pod  是 串行  并行   一个一个 还是一批一批   并发度是多少
+
+
+
+优雅退出时间
+
+golang
+
+
+
+sned  term  signal    15 号信号    收到后 处理当前请求 不在接收新的请求了
+
+
+
+
+
+kubectl exec -it pod  bash
+
+kubectl run --image=centos my-pod --restart=Never --image-pull-policy=IfNotPresent
+
+kubectl run --image=centos my-pod --restart=Never --image-pull-policy=IfNotPresent bash
+kubectl run --image=centos my-pod --restart=Never --image-pull-policy=IfNotPresent  sleep 100000
+
+
+kubect get pod
+kubect exec -it my-pod   bash
+
+ps  ajx  
+
+sleep 100000
+
+
+kubectl delete pod my-pod   卡住了  优雅退出  默认30秒
+
+
+写一个程序 支持优雅退出的程序
+
+
+kubectl run --image=centos my-pod --restart=Never --image-pull-policy=IfNotPresent  python -m SimpleHTTPServer
+
+
+kubectl get endpoints
+
+kubectl get service
+
+
+kubectl  get endpoints  nginx -o yaml
+
+
+kubectl get endpoints -o wide
+
+kubectl delete pod  nginx
+
+
+kubectl delete pod  my-pod --force   --grace-period=0
+强制删除 pod
+
+
+
+kubectl get endpoints -o wide -w
+
+
+kubectl delete pod xxx-pod   --wait=false
+
+
+
+
+pod 特权   root 被阉割   能力
+
+只拿到了 不影响全局的能力  
+
+trace  安全监控 容器  pod
+
+
+IDE 看代码
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

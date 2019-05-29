@@ -1,0 +1,234 @@
+开发一个管理平台
+限制操作
+
+kubectl run --?
+
+kubectl  create ns test
+
+cat > ex2.yaml << EOF
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  namespace: test
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+EOF
+
+
+
+
+kubectl  create  -f ex2.yaml 
+deployment.extensions/nginx-deployment created
+
+
+
+kubectl  -n test  edit deployments nginx-deployment
+
+
+replicas: 1
+
+
+
+
+[root@master01 ~]# kubectl  -n test  get pod
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-76984fcbf9-5mm4s   1/1     Running   0          43s
+nginx-deployment-76984fcbf9-tqqcd   1/1     Running   0          43s
+nginx-deployment-76984fcbf9-xr7kw   1/1     Running   0          43s
+[root@master01 ~]# kubectl  -n test  edit deployments nginx-deployment 
+deployment.extensions/nginx-deployment edited
+[root@master01 ~]# kubectl  -n test  get pod
+NAME                                READY   STATUS        RESTARTS   AGE
+nginx-deployment-76984fcbf9-5mm4s   1/1     Running       0          114s
+nginx-deployment-76984fcbf9-tqqcd   0/1     Terminating   0          114s
+nginx-deployment-76984fcbf9-xr7kw   0/1     Terminating   0          114s
+[root@master01 ~]# kubectl  -n test  get pod
+NAME                                READY   STATUS        RESTARTS   AGE
+nginx-deployment-76984fcbf9-5mm4s   1/1     Running       0          117s
+nginx-deployment-76984fcbf9-tqqcd   0/1     Terminating   0          117s
+nginx-deployment-76984fcbf9-xr7kw   0/1     Terminating   0          117s
+[root@master01 ~]# kubectl  -n test  get pod
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-76984fcbf9-5mm4s   1/1     Running   0          2m5s
+
+
+
+kubectl  -n test  delete pod --all
+
+
+--all 不推荐使用
+
+还会启动新的pod
+
+kubectl  -n test  get pod
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-76984fcbf9-2gtsv   1/1     Running   0          42s
+
+
+
+kubectl  cluster-info 
+Kubernetes master is running at https://192.168.10.232:6443
+Heapster is running at https://192.168.10.232:6443/api/v1/namespaces/kube-system/services/heapster/proxy
+CoreDNS is running at https://192.168.10.232:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+kubernetes-dashboard is running at https://192.168.10.232:6443/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy
+monitoring-grafana is running at https://192.168.10.232:6443/api/v1/namespaces/kube-system/services/monitoring-grafana/proxy
+monitoring-influxdb is running at https://192.168.10.232:6443/api/v1/namespaces/kube-system/services/monitoring-influxdb/proxy
+
+To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
+
+
+kubectl  cluster-info  dump
+
+定期备份
+
+E0517 11:44:05.000561       1 kubelet.go:288] node 192.168.10.242 is not ready
+
+describe 查看events
+
+kubectl  -n default  describe  pod web-sts-0
+
+
+kubectl  get events
+
+
+kubectl  describe node   192.168.10.242
+
+Capacity:
+ cpu:                4
+  ephemeral-storage:  87020524Ki
+  hugepages-2Mi:      0
+  memory:             8008976Ki
+  pods:               110
+
+
+
+
+kubectl  get pod -o wide
+NAME                        READY   STATUS    RESTARTS   AGE     IP             NODE             NOMINATED NODE
+backend-65cc7648f7-5zc7r    1/1     Running   0          14m     172.30.53.14   192.168.10.243   <none>
+bmw-gpu-node-affinity       1/1     Running   0          2d      172.30.53.12   192.168.10.243   <none>
+frontend-859f886dfc-jmn4v   1/1     Running   0          14m     172.30.53.15   192.168.10.243   <none>
+frontend-859f886dfc-tnwbf   1/1     Running   0          14m     172.30.53.18   192.168.10.243   <none>
+kubia-mtghr                 1/1     Running   0          14m     172.30.53.19   192.168.10.243   <none>
+my-nginx-c56566c77-2fn2p    1/1     Running   0          14m     172.30.53.17   192.168.10.243   <none>
+my-nginx-c56566c77-54qs2    1/1     Running   0          45m     172.30.53.13   192.168.10.243   <none>
+web-sts-0                   1/1     Running   0          9m13s   172.30.57.2    192.168.10.242   <none>
+web-sts-1                   1/1     Running   0          9d      172.30.53.10   192.168.10.243   <none>
+web-sts-777-0               1/1     Running   0          10m     172.30.53.20   192.168.10.243   <none>
+web-sts-777-1               1/1     Running   0          6d15h   172.30.53.11   192.168.10.243   <none>
+[root@master01 ~]# 
+
+
+onnect to 172.30.53.15:80; Connection refused
+[root@master01 ~]# kubectl  port-forward  web-sts-0  8888:80
+Forwarding from 127.0.0.1:8888 -> 80
+
+
+
+
+
+[root@master01 ~]# kubectl  -n test  get pod -o wide
+NAME                                READY   STATUS    RESTARTS   AGE   IP             NODE             NOMINATED NODE
+nginx-deployment-76984fcbf9-wl7gq   1/1     Running   0          19m   172.30.53.16   192.168.10.243   <none>
+[root@master01 ~]# curl  172.30.53.16
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+
+
+kubectl -n test  port-forward nginx-deployment-76984fcbf9-wl7gq   8999:80
+Forwarding from 127.0.0.1:8999 -> 80
+Handling connection for 8999
+E0528 15:22:18.146719  359787 portforward.go:331] an error occurred forwarding 8999 -> 80: error forwarding port 80 to pod d5aa9a25469d2c67bd63ba183dbcd93b6d70c6e6c6e5a1544cfc20b9617360f1, uid : unable to do port forwarding: socat not found.
+
+pod 所在的node  节点安装socat
+
+yum -y install socat
+
+
+[root@master01 ~]# curl localhost:8999
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[root@master01 ~]# curl localhost:8999
+curl: (52) Empty reply from server
+
+
+
+
+
+
+
+
+

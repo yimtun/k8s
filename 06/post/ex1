@@ -1,0 +1,162 @@
+cat > ex1.yaml  << EOF
+apiVersion: v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+
+EOF
+
+kubectl  create  -f ex1.yaml 
+error: unable to recognize "ex1.yaml": no matches for kind "Deployment" in version "v1"
+
+
+如何确定某个kind使用那个api version
+
+kubectl  explain  Deployment
+KIND:     Deployment
+VERSION:  extensions/v1beta1
+
+
+
+
+
+
+cat > ex2.yaml << EOF
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  namespace: test111
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+EOF
+
+
+
+kubectl  create  -f ex2 
+Error from server (NotFound): error when creating "ex2": namespaces "test111" not found
+
+
+
+
+按照template 创建pod
+
+
+kubectl   get pod my-nginx-c56566c77-drv6t  -o yaml
+
+spec  信息一致
+
+spec:
+  containers:
+  - image: nginx
+    imagePullPolicy: IfNotPresent
+    name: my-nginx
+    ports:
+    - containerPort: 80
+      protocol: TCP
+
+
+
+metadata:
+  creationTimestamp: 2019-05-18T14:33:02Z
+  generateName: my-nginx-c56566c77-
+  labels:
+    pod-template-hash: c56566c77
+    run: my-nginx
+  name: my-nginx-c56566c77-drv6t
+  namespace: default
+  ownerReferences:
+  - apiVersion: apps/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ReplicaSet
+    name: my-nginx-c56566c77
+    uid: d774ea02-7979-11e9-9cf2-5254003d139c
+  resourceVersion: "2898758"
+  selfLink: /api/v1/namespaces/default/pods/my-nginx-c56566c77-drv6t
+  uid: d77f2786-7979-11e9-9cf2-5254003d139c
+
+
+
+
+
+url  restful api  
+selfLink 
+
+curl localhost:8001/api/v1/namespaces/default/pods/my-nginx-c56566c77-drv6t
+curl: (7) Failed to connect to ::1: No route to host
+
+[root@master01 ~]# kubectl  proxy  
+Starting to serve on 127.0.0.1:8001
+
+curl localhost:8001/api/v1/namespaces/default/pods/my-nginx-c56566c77-drv6t
+
+
+
+curl localhost:8001/api/v1/namespaces/
+
+
+yum -y install jq
+
+
+curl localhost:8001/api/v1/namespaces/  | jq .
+
+
+curl localhost:8001/api/v1/namespaces/default/pods/  | jq .
+
+
+curl -X DELETE localhost:8001/api/v1/namespaces/default/pods/my-nginx-c56566c77-drv6t
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

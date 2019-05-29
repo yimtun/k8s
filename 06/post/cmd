@@ -1,0 +1,29 @@
+kubectl get ns
+
+kubectl get namespaces 
+
+
+kubectl  create ns ns-test
+namespace/ns-test created
+
+kubectl  api-versions 
+
+kubectl  api-resources
+
+
+kubectl  get  apiservices.apiregistration.k8s.io 
+
+
+有对应的简写
+
+SHORTNAMES
+
+kubectl  get po
+
+kind  是资源类型
+
+
+
+
+
+

@@ -1,0 +1,163 @@
+[root@node01 ~]# ps ajx | grep kubelet
+      1    3403    3403    3403 ?             -1 Ssl      0  10:53 /opt/k8s/bin/kubelet --cert-dir=/etc/kubernetes/cert --bootstrap-kubeconfig=/etc/kubernetes/kubele-bootstrap.kubeconfig --kubeconfig=/etc/kubernetes/kubelet.kubeconfig --config=/etc/kubernetes/kubelet.config.json --hostname-override=192.168.10.242 --pod-infra-container-image=registry.access.redhat.com/rhel7/pod-infrastructure:latest --allow-privileged=true --alsologtostderr=true --logtostderr=false --log-dir=/var/log/kubernetes --v=2
+
+
+--pod-infra-container-image=registry.access.redhat.com/rhel7/pod-infrastructure:latest
+
+
+生产环境  导入 本地镜像仓库
+导入宿主 改名
+
+https://github.com/kubernetes/kubernetes/tree/master/build/pause
+
+
+docker ps |grep /usr/bin/pod
+
+
+
+docker run -d --name pause -p 8880:80 registry.access.redhat.com/rhel7/pod-infrastructure:latest
+
+
+
+2019/05/28 12:07:27 [emerg] 12#12: invalid number of arguments in "proxy_set_header" directive in /etc/nginx/nginx.conf:10
+
+cat << EOF > nginx.conf
+error_log stderr;
+events { worker_connections  1024; }
+http {
+    access_log /dev/stdout combined;
+    server {
+        listen 80 default_server;
+        server_name example.com www.example.com;
+        location / {
+            proxy_pass http://127.0.0.1:2368;
+            proxy_set_header  Host \$host;
+        }
+    }
+}
+EOF
+
+
+
+
+curl localhost:8880
+
+
+
+
+
+
+
+docker run -d --name nginx -v `pwd`/nginx.conf:/etc/nginx/nginx.conf --net=container:pause --ipc=container:pause --pid=container:pause nginx
+
+docker inspect 
+
+docker  inspect  nginx
+
+"HostConfig": {
+            "Binds": [
+                "/root/nginx.conf:/etc/nginx/nginx.conf"
+            ],
+
+
+
+            "NetworkMode": "container:3ce947aaaf46dfb52b8020e31dc450250d6321be3bde397dc71cc2357809526e",
+
+            "IpcMode": "container:3ce947aaaf46dfb52b8020e31dc450250d6321be3bde397dc71cc2357809526e",
+            "PidMode": "container:3ce947aaaf46dfb52b8020e31dc450250d6321be3bde397dc71cc2357809526e",
+
+binds 
+networkmode container  
+
+
+
+docker run -d --name ghost --net=container:pause --ipc=container:pause --pid=container:pause ghost
+
+docker logs ghost  | grep 2368
+[2019-05-28 12:12:27] INFO Your site is now available on http://localhost:2368/
+
+
+
+
+
+8880 > 80 >  2368 
+
+
+curl localhost:8880
+curl  192.168.10.243:8880
+
+
+
+
+[root@node02 /]# docker exec -it pause bash
+bash-4.2$ ps -aux
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+1001           1  0.0  0.0   2668   732 ?        Ssl  12:06   0:00 /usr/bin/pod
+1000          19  0.5  1.1 1209268 90520 ?       Ssl  12:12   0:11 node current/index.js
+root         140  0.0  0.0  32508  3212 ?        Ss   12:30   0:00 nginx: master process nginx -g daemon off;
+101          147  0.0  0.0  32964  1808 ?        S    12:30   0:00 nginx: worker process
+1001         158  1.2  0.0  11772  1672 pts/0    Ss   12:47   0:00 bash
+1001         164  0.0  0.0  47448  1672 pts/0    R+   12:47   0:00 ps -aux
+bash-4.2$ 
+
+
+docker exec -it  ghost bash
+root@3ce947aaaf46:/var/lib/ghost# apt-get update
+
+apt-get install -y procps
+apt-get install -y net-tools
+
+
+root@3ce947aaaf46:/var/lib/ghost# ps aux 
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+1001           1  0.0  0.0   2668   732 ?        Ssl  12:06   0:00 /usr/bin/pod
+node          19  0.3  1.1 1209780 89836 ?       Ssl  12:12   0:12 node current/index.js
+root         140  0.0  0.0  32508  3212 ?        Ss   12:30   0:00 nginx: master process nginx -g daemon off;
+101          147  0.0  0.0  32964  1808 ?        S    12:30   0:00 nginx: worker process
+root         170  0.0  0.0  18176  2096 pts/0    Ss   12:49   0:00 bash
+root         434  0.0  0.0  36624  1576 pts/0    R+   13:08   0:00 ps aux
+
+
+
+pause pod pid 是1
+
+
+
+root@3ce947aaaf46:/var/lib/ghost# ifconfig 
+eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1450
+        inet 172.30.53.22  netmask 255.255.255.0  broadcast 172.30.53.255
+        ether 02:42:ac:1e:35:16  txqueuelen 0  (Ethernet)
+        RX packets 6363  bytes 9282927 (8.8 MiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 6064  bytes 494975 (483.3 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 36  bytes 68066 (66.4 KiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 36  bytes 68066 (66.4 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+
+root@3ce947aaaf46:/var/lib/ghost# curl localhost:2368
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

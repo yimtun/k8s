@@ -1,0 +1,333 @@
+接入层将  redinessprobe  设置为默认的sucess
+
+容器存活不管服务是否就绪 就引入流量  不好
+
+默认应该是 failure 
+探测通过再接入
+
+
+
+
+两个探针可以只用一个 也可以搭配使用
+
+
+
+kubelet 发起的 探针 诊断
+
+
+kubelet 探测的 三种方式
+
+execaction
+tcpsocketaction
+httpgetaction   200-400  OK
+
+
+如果容器中的进程能够在遇到问题或不健康的情况下自行崩溃，则不一定需要存活探针; kubelet 将根据 Pod 的restartPolicy 自动执行正确的操作。  ????
+
+
+initialDelaySeconds：容器启动后第一次执行探测是需要等待多少秒。
+容器启动之后 延迟几秒钟 再发起探测    
+
+
+
+
+scheme：连接使用的 schema，默认HTTP。   http https
+
+
+docker pull k8s.gcr.io/busybox
+
+
+ex1  存活探针 使用 ExecAction 的方式
+
+initialDelaySeconds: 5  容器异启动后延迟5秒探测
+periodSeconds: 5        每次探测间隔5秒
+没有指定restartPolicy  默认为  Always
+
+cat  > exec-liveness.yaml << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    test: liveness
+  name: liveness-exec
+spec:
+  containers:
+  - name: liveness
+    image: busybox
+    imagePullPolicy: IfNotPresent
+    args:
+    - bin/sh
+    - -c
+    - touch /tmp/healthy; sleep 30; rm -rf /tmp/healthy; sleep 600
+    livenessProbe:
+      exec:
+        command:
+        - cat
+        - /tmp/healthy
+      initialDelaySeconds: 5
+      periodSeconds: 5
+EOF
+
+kubectl  create -f exec-liveness.yaml  --dry-run
+
+kubectl  create -f exec-liveness.yaml
+
+
+[root@master01 ~]# kubectl   get pod liveness-exec  -w
+NAME            READY   STATUS    RESTARTS   AGE
+liveness-exec   1/1     Running   0          32s
+liveness-exec   1/1   Running   1     76s
+liveness-exec   1/1   Running   2     2m31s
+
+
+kubectl   get pod liveness-exec   -o yaml --export 
+
+
+
+livenessProbe:
+      exec:
+        command:
+        - cat
+        - /tmp/healthy
+      failureThreshold: 3
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 1
+
+
+failureThreshold 3 默认值是3  连续3次探测失败 就算失败
+successThreshold: 1
+
+
+
+
+
+
+ex2  http 方式的 存活探针
+
+
+cat  > http-liveness.yaml << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    test: liveness
+  name: liveness-http
+spec:
+  containers:
+  - name: liveness
+    image: k8s.gcr.io/liveness
+    imagePullPolicy: IfNotPresent
+    args:
+    - /server
+    livenessProbe:
+      httpGet:
+        path: /healthz
+        port: 8080
+        httpHeaders:
+        - name: Custom-Header
+          value: Awesome
+      initialDelaySeconds: 3
+      periodSeconds: 5
+EOF
+
+kubectl  create -f http-liveness.yaml  --dry-run 
+
+
+kubectl  create -f http-liveness.yaml
+
+
+
+[root@master01 ~]# kubectl  get pod  liveness-http -w
+NAME            READY   STATUS    RESTARTS   AGE
+liveness-http   1/1     Running   1          62s
+liveness-http   1/1   Running   2     69s
+liveness-http   1/1   Running   3     93s
+
+
+
+查看 kubelet 日志  探针相关  kubelet  发起探针 检查
+
+
+ex3
+
+Define a TCP liveness & readiness probe
+
+
+cat  > tcp-liveness-readiness.yaml << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: goproxy
+  labels:
+    app: goproxy
+spec:
+  containers:
+  - name: goproxy
+    image: k8s.gcr.io/goproxy:0.1
+    imagePullPolicy: IfNotPresent
+    ports:
+    - containerPort: 8080
+    readinessProbe:
+      tcpSocket:
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 10
+    livenessProbe:
+      tcpSocket:
+        port: 8080
+      initialDelaySeconds: 15
+      periodSeconds: 20
+EOF
+
+kubectl  create -f tcp-liveness-readiness.yaml --dry-run 
+
+kubectl  create -f tcp-liveness-readiness.yaml 
+
+
+
+
+
+
+
+检查  ex1 ex2
+
+
+
+kubectl  get pod  
+NAME                       READY   STATUS             RESTARTS   AGE
+goproxy                    1/1     Running            0          115s
+httpd-7db5849b8-4h45l      1/1     Running            8          59d
+liveness-exec              0/1     CrashLoopBackOff   9          22m
+liveness-http              0/1     CrashLoopBackOff   7          12m
+
+
+kubectl  describe  pod liveness-exec
+Events:
+  Type     Reason     Age                   From                     Message
+  ----     ------     ----                  ----                     -------
+  Normal   Scheduled  23m                   default-scheduler        Successfully assigned default/liveness-exec to 192.168.10.243
+  Normal   Pulled     20m (x4 over 23m)     kubelet, 192.168.10.243  Container image "busybox" already present on machine
+  Normal   Created    20m (x4 over 23m)     kubelet, 192.168.10.243  Created container
+  Normal   Started    20m (x4 over 23m)     kubelet, 192.168.10.243  Started container
+  Warning  Unhealthy  18m (x13 over 23m)    kubelet, 192.168.10.243  Liveness probe failed: cat: can't open '/tmp/healthy': No such file or directory
+  Normal   Killing    13m (x7 over 22m)     kubelet, 192.168.10.243  Killing container with id docker://liveness:Container failed liveness probe.. Container will be killed and recreated.
+  Warning  BackOff    3m56s (x40 over 16m)  kubelet, 192.168.10.243  Back-off restarting failed container
+
+
+
+
+kubectl  describe  pod liveness-http 
+Liveness probe failed: HTTP probe failed with statuscode: 500
+Warning  BackOff    4m15s (x35 over 12m)  kubelet, 192.168.10.243  Back-off restarting failed container
+
+
+
+
+exec4  
+kubectl  delete -f  http-liveness.yaml 
+kubectl  delete -f  exec-liveness.yaml 
+
+
+
+kubectl  delete -f nginx-dp.yaml
+
+
+kubectl  create ns test
+
+
+cat   > nginx-dp.yaml  << EOF
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  namespace: test
+spec:
+  replicas: 2 
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+        livenessProbe:
+         httpGet:
+          path: /healthz
+          port: 8080
+          httpHeaders:
+          - name: Custom-Header
+            value: Awesome
+         initialDelaySeconds: 3
+         periodSeconds: 5
+EOF 
+
+
+
+
+
+
+kubectl  create -f nginx-dp.yaml  --dry-run 
+
+kubectl  create -f nginx-dp.yaml 
+
+
+kubectl  -n test  get deployments.
+NAME               DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+nginx-deployment   2         2         2            0           2m16s
+
+
+
+kubectl  -n test  get po
+NAME                               READY   STATUS    RESTARTS   AGE
+nginx-deployment-7cb866c5f-gf7x2   1/1     Running   0          3s
+nginx-deployment-7cb866c5f-vnvdq   1/1     Running   0          3s
+
+
+[root@master01 ~]# kubectl  -n test delete pod nginx-deployment-7cb866c5f-gf7x2  --wait=false
+pod "nginx-deployment-7cb866c5f-gf7x2" deleted
+[root@master01 ~]# kubectl  -n test  get po
+NAME                               READY   STATUS    RESTARTS   AGE
+nginx-deployment-7cb866c5f-gj468   1/1     Running   0          3s
+nginx-deployment-7cb866c5f-vnvdq   1/1     Running   3          55s
+[root@master01 ~]# 
+
+
+
+
+
+
+探测的8080  实际使用的事80  会不断重启
+
+[root@master01 ~]# kubectl  -n test  get po
+NAME                               READY   STATUS             RESTARTS   AGE
+nginx-deployment-7cb866c5f-6bc49   0/1     CrashLoopBackOff   5          2m55s
+nginx-deployment-7cb866c5f-zlb8j   0/1     CrashLoopBackOff   5          2m55s
+
+ 
+
+接入层 还需要 探针 lvs 探针 以哪一个为准 ?
+
+不用探针  如何确定  ready     可以加一个默认的 exec 探针  
+放在容器启动的最后一步  文件在就是running  创建成功就是running
+
+
+
+
+
+接入层探针  探测  
+
+
+
+
+
+
+
+
+
+
