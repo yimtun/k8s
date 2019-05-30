@@ -1,0 +1,284 @@
+一个pod 可以有多个容器
+
+init  容器在 应用容器启动之前启动
+
+多个  init  容器  one by one 
+
+
+生产环境会限制容器重启此时
+一旦应用前期初始化工作没有做好 就会出现问题  可以借助 init  容器
+
+比如白名单还没有生效  服务已经运行  但是不能正常工作
+
+
+ex1
+
+cat > init.yaml << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: init-pod1
+  labels:
+    app: init
+spec:
+  containers:
+  - name: init-container
+    image: busybox
+    imagePullPolicy: IfNotPresent
+    command: ['sh', '-c', 'echo The app is running! && sleep 3600']
+  initContainers:
+  - name: init-myservice
+    image: busybox
+    imagePullPolicy: IfNotPresent
+    command: ['sh', '-c', 'sleep 10;until nslookup myservice; do echo waiting for myservice; sleep 2; done;']
+  - name: init-mydb
+    image: busybox
+    command: ['sh', '-c', 'sleep 10;until nslookup mydb; do echo waiting for mydb; sleep 2; done;']
+EOF
+
+
+kubectl  create -f init.yaml     --dry-run
+
+kubectl  create -f init.yaml   
+
+
+kubectl  get pod
+NAME                       READY   STATUS     RESTARTS   AGE
+init-pod1                  0/1     Init:0/2   0          6s
+
+kubectl  get pod  init-pod1 -o wide
+NAME        READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+init-pod1   1/1     Running   0          27s   172.30.84.8   192.168.10.242   <none>
+
+
+
+
+kubectl  get pod init-pod1  -o yaml
+
+
+initContainerStatuses:
+  - containerID: docker://2cf188f91706b2e8f5a9001046c0704498e75cd623ee965355d8dd512de16d1a
+    image: sha256:d8233ab899d419c58cf3634c0df54ff5d8acc28f8173f09c21df4a07229e1205
+    imageID: docker-pullable://busybox@sha256:061ca9704a714ee3e8b80523ec720c64f6209ad3f97c0ff7cb9ec7d19f15149f
+    lastState: {}
+    name: init-myservice
+    ready: true
+    restartCount: 0
+    state:
+      terminated:
+        containerID: docker://2cf188f91706b2e8f5a9001046c0704498e75cd623ee965355d8dd512de16d1a
+        exitCode: 0
+        finishedAt: 2019-05-30T10:38:54Z
+        reason: Completed
+        startedAt: 2019-05-30T10:38:49Z
+
+
+
+
+
+cat > ser.yaml << EOF
+kind: Service
+apiVersion: v1
+metadata:
+  name: myservice
+spec:
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 9376
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: mydb
+spec:
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 9377
+EOF
+
+kubectl create -f ser.yaml --dry-run
+
+
+
+
+kubectl  get pod -w
+
+kubectl  create -f init.yaml
+
+kubectl create -f ser.yaml 
+
+
+
+
+kubectl  get pod -w
+NAME                       READY   STATUS    RESTARTS   AGE
+goproxy                    1/1     Running   0          20h
+httpd-7db5849b8-4h45l      1/1     Running   8          60d
+my-nginx-c56566c77-kzqdg   1/1     Running   6          60d
+my-nginx-c56566c77-trxbh   1/1     Running   6          60d
+nginx                      1/1     Running   6          60d
+nginx-75d67854df-9d6qx     1/1     Running   8          60d
+nginx-75d67854df-b86jh     1/1     Running   7          60d
+nginx-static-pv-test       0/1     Error     0          8d
+init-pod1   0/1   Pending   0     0s
+init-pod1   0/1   Pending   0     0s
+init-pod1   0/1   Init:0/2   0     0s
+init-pod1   0/1   Init:0/2   0     3s
+init-pod1   0/1   Init:1/2   0     8s
+init-pod1   0/1   Init:1/2   0     11s
+init-pod1   0/1   PodInitializing   0     16s
+init-pod1   1/1   Running   0     17s
+
+
+问题   init 容器的退出状态并不被监视 
+
+
+ex2
+
+init 容器应用 于初始化配置   mount path   应用容器 init容器共享一个 volme work-dir
+
+init 容器将百度首页 存在  /work-dir/index.html
+
+cat > init-demo.yaml  << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: init-demo
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: IfNotPresent
+    ports:
+    - containerPort: 80
+    volumeMounts:
+    - name: workdir
+      mountPath: /usr/share/nginx/html
+  initContainers:
+  - name: install
+    image: busybox
+    imagePullPolicy: IfNotPresent
+    command:
+    - wget
+    - "-O"
+    - "/work-dir/index.html"
+    - http://www.baidu.com
+    volumeMounts:
+    - name: workdir
+      mountPath: "/work-dir"
+  volumes:
+  - name: workdir
+    emptyDir: {}
+EOF
+
+
+
+
+
+kubectl  create -f init-demo.yaml  --dry-run
+
+
+kubectl  create -f init-demo.yaml
+
+kubectl  get pod init-demo  -o wide
+NAME        READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+init-demo   1/1     Running   0          20s   172.30.70.7   192.168.10.243   <none>
+
+
+
+[root@master01 ~]#
+curl  172.30.70.7
+
+
+
+白名单审核
+
+可以 init  容器使用 post 方法将  ip 主机名  提交到白名单
+
+
+cat > whitelist.yaml  << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-pod
+  labels:
+    app: myapp
+spec:
+  containers:
+  - name: myapp-container
+    image: busybox
+    imagePullPolicy: IfNotPresent
+    command: ['sh', '-c', 'echo The app is running! && sleep 3600']
+  initContainers:
+  - name: init-myservice
+    image: centos
+    imagePullPolicy: IfNotPresent
+    command:
+    - curl
+    - http://192.168.10.232:8888
+EOF
+
+kubectl  create -f whitelist.yaml  --dry-run
+
+kubectl  create -f whitelist.yaml
+
+
+
+
+python -m SimpleHTTPServer 8888 
+
+
+[root@master01 ~]# python -m SimpleHTTPServer 8888
+Serving HTTP on 0.0.0.0 port 8888 ...
+192.168.10.243 - - [30/May/2019 19:12:28] "GET / HTTP/1.1" 200 -
+
+
+kubectl  get pod myapp-pod -o wide -w
+NAME        READY   STATUS     RESTARTS   AGE   IP       NODE             NOMINATED NODE
+myapp-pod   0/1     Init:0/1   0          3s    <none>   192.168.10.243   <none>
+myapp-pod   0/1   Init:Error   0     18s   172.30.70.8   192.168.10.243   <none>
+myapp-pod   0/1   Init:Error   1     19s   172.30.70.8   192.168.10.243   <none>
+myapp-pod   0/1   Init:CrashLoopBackOff   1     20s   172.30.70.8   192.168.10.243   <none>
+myapp-pod   0/1   Init:Error   2     33s   172.30.70.8   192.168.10.243   <none>
+myapp-pod   0/1   Init:CrashLoopBackOff   2     45s   172.30.70.8   192.168.10.243   <none>
+myapp-pod   0/1   Init:Error   3     57s   172.30.70.8   192.168.10.243   <none>
+myapp-pod   0/1   Init:CrashLoopBackOff   3     72s   172.30.70.8   192.168.10.243   <none>
+myapp-pod   0/1   PodInitializing   0     101s   172.30.70.8   192.168.10.243   <none>
+myapp-pod   1/1   Running   0     102s   172.30.70.8   192.168.10.243   <none>
+
+
+
+
+
+
+白名单请求发出去 还需要等待生效
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,138 @@
+静态Pod是由kubelet进行管理，仅存在于特定Node上的Pod。它们不能通过API Server进行管理，
+无法与ReplicationController、Deployment或DaemonSet进行关联，并且kubelet也无法对其健康检查。
+
+静态Pod总是由kubelet创建，并且总在kubelet所在的Node上运行。
+
+***创建静态Pod的方式：***  
+Kubelet 使用 inotify 机制检测 /etc/kubernetes/manifests 目录
+（可通过 Kubelet 的 --pod-manifest-path 选项指定）中静态 Pod 的变化，并根据该目录的.yaml或.json文件进行创建操作。
+在文件发生变化后重新创建相应的 Pod。但有时也会发生修改静态 Pod 的 Manifest 后未自动创建新 Pod 的情景，
+此时一个简单的修复方法是重启 Kubelet。
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: static-web
+  labels:
+    name: static-web
+spec:
+  containers:
+  - name: static-web
+    image: nginx
+    imagePullPolicy: IfNotPresent
+    ports:
+    - name: web
+      containerPort: 80
+```
+
+
+
+
+***PS：***  
+静态Pod无法通过API Server删除（若删除会变成pending状态），如需删除该Pod则将yaml或json文件从这个目录中删除。
+
+
+
+k8s on k8s 
+
+
+ex1
+
+mkdir /etc/kubernetes/manifests
+chown -R k8s /etc/kubernetes/manifests
+
+
+
+vim /etc/systemd/system/kubelet.service
+--v=5 \
+--pod-manifest-path=/etc/kubernetes/manifests
+
+
+
+
+
+systemctl daemon-reload
+
+systemctl  restart kubelet
+
+
+ps ajx | grep kubelet
+      1  322418  322418  322418 ?             -1 Ssl      0   0:00 /opt/k8s/bin/kubelet --cert-dir=/etc/kubernetes/cert --bootstrap-kubeconfig=/etc/kubernetes/kubele-bootstrap.kubeconfig --kubeconfig=/etc/kubernetes/kubelet.kubeconfig --config=/etc/kubernetes/kubelet.config.json --hostname-override=192.168.10.242 --pod-infra-container-image=registry.access.redhat.com/rhel7/pod-infrastructure:latest --allow-privileged=true --alsologtostderr=true --logtostderr=false --log-dir=/var/log/kubernetes --v=5 --pod-manifest-path=/etc/kubernetes/manifests
+
+
+
+grep  manifest   /var/log/kubernetes/kubelet.INFO
+
+
+
+
+
+  ??????
+[root@node01 ~]# cat /etc/kubernetes/kubelet.config.json 
+  "clusterDNS": ["10.254.0.2"],
+  "podManifestPath ": "/etc/kubernetes/manifests"
+}
+
+
+,
+"podManifestPath ": "/etc/kubernetes/manifests"
+
+
+
+node01
+
+cat  > /etc/kubernetes/manifests/static-web.yaml << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: static-web
+  labels:
+    name: static-web
+spec:
+  containers:
+  - name: static-web
+    image: nginx
+    imagePullPolicy: IfNotPresent
+    ports:
+    - name: web
+      containerPort: 80
+EOF
+
+
+[root@master01 ~]# kubectl  get pod -w
+NAME                        READY   STATUS    RESTARTS   AGE
+static-web-192.168.10.242   1/1     Running   0          11s
+
+
+kubectl  delete pod static-web-192.168.10.242
+
+还会再次启动
+
+kubectl  delete pod static-web-192.168.10.242 --force --grace-period=0
+
+
+kubectl  delete pod static-web-192.168.10.242 --force --grace-period=0
+warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
+pod "static-web-192.168.10.242" force deleted
+
+
+
+
+用静态容器方式  运行小集群的 master
+
+
+
+
+
+
+
+limit 上限
+request  底线    调度的时候关注
+
+request  是 满的  但是  cpu idle 空闲   内存空闲较多
+
+
+可以调整 NODE Capacity
+
+

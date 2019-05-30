@@ -1,1 +1,138 @@
+hook  point 
+
+prestop
+poststart 
+
+
+lifecycle
+
+
+hook 类型
+
+exec
+http
+
+容器创建后 可以通过 http 方式的hook 给白名单系统 
+或者给接入层发送请求 告知启动了 
+
+
+
+exe1
+
+cat > lifecycle-events.yaml << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lifecycle-demo
+spec:
+  containers:
+  - name: lifecycle-demo-container
+    image: nginx
+    imagePullPolicy: IfNotPresent
+    lifecycle:
+      postStart:
+        exec:
+          command: ["/bin/sh", "-c", "echo Hello from the postStart handler > /usr/share/message"]
+      preStop:
+        exec:
+          command: ["/usr/sbin/nginx","-s","quit"]
+EOF
+
+
+
+kubectl create -f  lifecycle-events.yaml  --dry-run 
+
+kubectl create -f  lifecycle-events.yaml 
+
+
+
+
+kubectl  describe  pod lifecycle-demo
+
+kubectl exec -it lifecycle-demo -- /bin/bash
+cat /usr/share/message 
+Hello from the postStart handler
+
+
+
+因为postStart的操作跟容器的操作是异步的，而且Kubernetes控制台会锁住容器直至postStart完成，因此容器只有在 postStart 操作完成之后才会被设置成为RUNNING状态。
+pause 容器都不会准备 也没有pod ip
+
+ex2 增加 postStart 消耗的时长   查看pod 状态
+
+kubectl  delete pod lifecycle-demo
+
+cat > lifecycle-events.yaml << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lifecycle-demo
+spec:
+  containers:
+  - name: lifecycle-demo-container
+    image: nginx
+    imagePullPolicy: IfNotPresent
+    lifecycle:
+      postStart:
+        exec:
+          command: ["/bin/sh", "-c", "sleep 60;echo Hello from the postStart handler > /usr/share/message"]
+      preStop:
+        exec:
+          command: ["/usr/sbin/nginx","-s","quit"]
+EOF
+
+
+
+
+
+
+kubectl  create  -f lifecycle-events.yaml 
+pod/lifecycle-demo created
+[root@master01 ~]# kubectl  get pod  lifecycle-demo  -w
+NAME             READY   STATUS              RESTARTS   AGE
+lifecycle-demo   0/1     ContainerCreating   0          8s
+lifecycle-demo   1/1   Running   0     61s
+
+
+
+kubectl  get   pod lifecycle-demo  -o yaml
+    message: 'containers with unready status: [lifecycle-demo-container]'
+
+
+
+
+poststart 连ip 都没有 如何发起 http  类型的hook？
+pause  容器也没有创建
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
