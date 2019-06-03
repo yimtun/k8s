@@ -1,0 +1,307 @@
+资源利用率
+提升
+
+如果跟物理机时代比 提高了10个点 意义就不大了
+提升这个10个点  需要看投入和产出比
+如果一个人提升了十个点 还可以 如果是一个团队 
+通过k8s  将资源利用率 提高10个点就不是很理想
+
+如果是从0到1 还可以接受 从1到2 价值就不大了
+
+%50  到 %60  是一个大的进步
+%10 到 %20   意义不大
+小于10%  到 10几    意义不大
+
+
+
+ex1
+
+mkdir /res-quota
+cd /res-quota
+
+cat << EOF > request.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: requests-pod
+spec:
+  containers:
+  - name: main
+    image: busybox
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 200m
+        memory: "10Mi"
+    command: ["dd","if=/dev/zero","of=/dev/null"]
+EOF
+
+在busybox 中使用dd 命令  造成频繁的IO 请求
+
+kubectl  create  -f request.yaml 
+
+kubectl  exec  -it requests-pod   sh
+
+
+指定刷新时间的间隔
+top -d 1
+
+Mem: 868204K used, 7124140K free, 12076K shrd, 2104K buff, 376832K cached
+CPU:  7.0% usr 18.7% sys  0.0% nic 74.1% idle  0.0% io  0.0% irq  0.0% sirq
+Load average: 1.13 0.76 0.46 3/321 32
+  PID  PPID USER     STAT   VSZ %VSZ CPU %CPU COMMAND
+    1     0 root     R     1272  0.0   1 25.2 dd if /dev/zero of /dev/null
+   24     0 root     S     1288  0.0   0  0.0 sh
+   32    24 root     R     1280  0.0   3  0.0 top -d 1
+
+
+request cpu 200m  两百毫秒  一个cpu 是一千毫秒 
+
+
+top  是  按1 显示所有核心
+
+
+Mem: 870996K used, 7121348K free, 12076K shrd, 2104K buff, 376908K cached
+CPU0:  1.0% usr  0.0% sys  0.0% nic 98.9% idle  0.0% io  0.0% irq  0.0% sirq
+CPU1: 28.0% usr 72.0% sys  0.0% nic  0.0% idle  0.0% io  0.0% irq  0.0% sirq
+CPU2:  1.0% usr  0.0% sys  0.0% nic 98.0% idle  0.0% io  0.0% irq  1.0% sirq
+CPU3:  1.0% usr  0.0% sys  0.0% nic 99.0% idle  0.0% io  0.0% irq  0.0% sirq
+Load average: 1.03 0.82 0.51 3/321 32
+  PID  PPID USER     STAT   VSZ %VSZ CPU %CPU COMMAND
+    1     0 root     R     1272  0.0   1 25.6 dd if /dev/zero of /dev/null
+   32    24 root     R     1280  0.0   2  0.2 top -d 1
+   24     0 root     S     1288  0.0   0  0.0 sh
+
+
+node  是四个核心  总量应该是 4000毫秒
+
+200/4000  应该是 %5
+
+200m  是一个核心的 %20   是四个核心的 %5
+
+
+但是 dd 已经跑满了一个cpu   这个命令是单线程的 idle 是0
+request 是200毫秒 实际使用的 1000毫秒 也就是一个核心  是不相符的
+
+request 不会限制 容器使用的cpu  l
+limit  才会限制   没有指定 limit 就是会尽量使用资源
+
+kubectl delete -f request.yaml 
+rm -rf request.yaml
+
+ex2    在 node  192.168.10.243 上创建 三个pod  一个request  的资源 是 4000毫秒 也就是node 243 上 四个核心都被分配给三个pod 
+
+docker pull ubuntu-stress  ???
+docker pull progrium/stress
+docker tag progrium/stress ubuntu-stress
+
+
+
+
+cat > pod-request-stress-2000.yaml << 	EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: requests-pod-2000
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.243
+  containers:
+  - name: main
+    image: ubuntu-stress
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 2000m
+        memory: "10Mi"
+    command: ["stress","-c","4"]
+EOF
+
+
+cat > pod-request-stress-1000-1.yaml <<   EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: requests-pod-1000
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.243
+  containers:
+  - name: main
+    image: ubuntu-stress
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 1000m
+        memory: "10Mi"
+    command: ["stress","-c","4"]
+EOF
+
+cat > pod-request-stress-1000-2.yaml <<   EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: requests-pod-1000-2
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.243
+  containers:
+  - name: main
+    image: ubuntu-stress
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 1000m
+        memory: "10Mi"
+    command: ["stress","-c","4"]
+EOF
+
+
+kubectl  create  -f .
+pod/requests-pod-1000 created
+pod/requests-pod-1000-2 created
+pod/requests-pod-2000 created
+
+
+kubectl  get pod -o wide
+NAME                  READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+requests-pod-1000     1/1     Running   0          23s   172.30.38.5   192.168.10.243   <none>
+requests-pod-1000-2   1/1     Running   0          23s   172.30.38.4   192.168.10.243   <none>
+requests-pod-2000     1/1     Running   0          23s   172.30.38.6   192.168.10.243   <none>
+
+容器中使用的命令 尽量打满四个cpu 核心
+192.168.10.243
+
+ docker stats --no-stream
+CONTAINER ID        NAME                                                                                                CPU %               MEM USAGE / LIMIT     MEM %               NET I/O             BLOCK I/O           PIDS
+486732d0ff43        k8s_main_requests-pod-2000_default_1a589c00-860a-11e9-8d0b-000c295c6216_0                           217.30%             1.793MiB / 7.622GiB   0.02%               0B / 0B             0B / 0B             5
+81242e579b6e        k8s_main_requests-pod-1000_default_1a56572c-860a-11e9-8d0b-000c295c6216_0                           110.29%             2MiB / 7.622GiB       0.03%               0B / 0B             0B / 0B             5
+a038d5a25a7e        k8s_main_requests-pod-1000-2_default_1a57870f-860a-11e9-8d0b-000c295c6216_0                         111.20%             1.648MiB / 7.622GiB   0.02%               0B / 0B             0B / 0B             5
+a9c177211945        k8s_POD_requests-pod-2000_default_1a589c00-860a-11e9-8d0b-000c295c6216_0                            0.00%               3.051MiB / 7.622GiB   0.04%               0B / 0B             0B / 0B             5
+9026823e6eeb        k8s_POD_requests-pod-1000_default_1a56572c-860a-11e9-8d0b-000c295c6216_0                            0.00%               2.918MiB / 7.622GiB   0.04%               0B / 0B             0B / 0B             5
+6801fb06707d        k8s_POD_requests-pod-1000-2_default_1a57870f-860a-11e9-8d0b-000c295c6216_0                          0.00%               3.039MiB / 7.622GiB   0.04%               0B / 0B             0B / 0B             5
+48776454f5ed        k8s_grafana_monitoring-grafana-5c5fbc85b-nzlcl_kube-system_73239ec1-8538-11e9-a94b-000c295c6216_2   0.00%               12.31MiB / 7.622GiB   0.16%               63.7kB / 13.5kB     64.7MB / 0B         11
+209e50ae3d8a        k8s_heapster_heapster-77db4c4496-czj75_kube-system_0ef45f0a-8538-11e9-a94b-000c295c6216_2           0.00%               31.23MiB / 7.622GiB   0.40%               29.2MB / 21.3MB     76.5MB / 0B         8
+ce247b175e27        k8s_POD_heapster-77db4c4496-czj75_kube-system_0ef45f0a-8538-11e9-a94b-000c295c6216_2                0.00%               2.738MiB / 7.622GiB   0.04%               29.2MB / 21.3MB     1.56MB / 0B         5
+0c0940c753d0        k8s_POD_monitoring-grafana-5c5fbc85b-nzlcl_kube-system_73239ec1-8538-11e9-a94b-000c295c6216_2       0.00%               3.207MiB / 7.622GiB   0.04%               63.7kB / 13.5kB     729kB / 0B          5
+
+
+
+
+容器按照  request  2000  1000  1000 这样的分配了
+
+2:1:1 这样的时间来分配
+
+虽然仅仅设置了 request 但是如果CPU 被打满的情况下  所有CPU 产生竞争关系了 那么还是会按照 request  的比例进行分配
+
+也就是将request  作为了一个权重 
+
+kubectl  delete -f .
+pod "requests-pod-1000" deleted
+pod "requests-pod-1000-2" deleted
+pod "requests-pod-2000" deleted
+
+
+ex3  limit 可以真正限制使用资源的上限
+
+cat  > req-limit.yaml  << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: limit-pod
+spec:
+  containers:
+  - name: main
+    image: busybox
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: "20Mi"
+    command: ["dd","if=/dev/zero","of=/dev/null"]
+EOF
+
+
+kubectl  create  -f req-limit.yaml
+
+kubectl  exec -it limit-pod  sh
+
+top -d 1
+Mem: 1299900K used, 6692444K free, 12132K shrd, 2104K buff, 719852K cached
+CPU0:  4.0% usr 13.0% sys  0.0% nic 83.0% idle  0.0% io  0.0% irq  0.0% sirq
+CPU1:  2.0% usr  4.0% sys  0.0% nic 94.0% idle  0.0% io  0.0% irq  0.0% sirq
+CPU2:  1.0% usr  0.0% sys  0.0% nic 98.9% idle  0.0% io  0.0% irq  0.0% sirq
+CPU3:  1.0% usr  1.0% sys  0.0% nic 98.0% idle  0.0% io  0.0% irq  0.0% sirq
+Load average: 0.14 4.38 6.20 3/333 15
+  PID  PPID USER     STAT   VSZ %VSZ CPU %CPU COMMAND
+    1     0 root     R     1272  0.0   1  5.2 dd if /dev/zero of /dev/null
+   15     7 root     R     1284  0.0   0  0.2 top -d 1
+    7     0 root     S     1288  0.0   3  0.0 sh
+
+
+
+这个容器内的进程不允许消耗超过200m的cpu和20m的memory。 ps
+
+因为没有指定资源requestes, 它将被设置成与limits相同的值
+
+kubectl  describe  node 192.168.10.243
+Non-terminated Pods:         (3 in total)
+  Namespace                  Name                                  CPU Requests  CPU Limits  Memory Requests  Memory Limits
+  ---------                  ----                                  ------------  ----------  ---------------  -------------
+  default                    limit-pod                             200m (5%)     200m (5%)   20Mi (0%)        20Mi (0%)
+  kube-system                heapster-77db4c4496-czj75             0 (0%)        0 (0%)      0 (0%)           0 (0%)
+  kube-system                monitoring-grafana-5c5fbc85b-nzlcl    0 (0%)        0 (0%)      0 (0%)           0 (0%)
+
+
+
+
+limits 5%   request %5 
+
+
+
+request 可以设置小一点 让容器可以调度到 node   limit 可以设置大些 让容器真正使用到需要的资源
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

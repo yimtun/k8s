@@ -1,0 +1,21 @@
+只要没有 unallocated 就可以超卖
+
+request  总是是  100%
+limits  可以超过100%
+
+
+
+QOS 驱逐策略
+
+
+
+扩展资源  
+
+
+
+ssh  disk.sh 192.168.10.243
+
+kubectl describe node 192.168.10.243
+Capacity 
+
+

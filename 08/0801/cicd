@@ -1,0 +1,13 @@
+从rd 去push  代码
+
+QA 拿到 源码和基础镜像 测试镜像交给 sre 拿到测试后的业务镜像去 上线
+
+
+
+1 CRD  自定义的resource   扩展的
+2 控制器 ao pu rei ter    kafaka  rdis  es
+
+
+
+
+
