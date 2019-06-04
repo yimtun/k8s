@@ -1,0 +1,111 @@
+Pending 不可以 kubectl logs  pod
+
+ContainerCreating  可以  kubectl logs pod
+
+
+cat  > req-limit.yaml << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: limit-pod
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.243
+  containers:
+  - name: main
+    image: busybox
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: "20Mi"
+    command: ["dd","if=/dev/zero","of=/dev/null"]
+EOF
+
+kubectl  create -f req-limit.yaml
+
+kubectl  get pod limit-pod  -o wide
+NAME        READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+limit-pod   1/1     Running   0          17s   172.30.13.3   192.168.10.243   <none>
+
+
+
+kubectl  top pod limit-pod 
+Error from server (NotFound): the server could not find the requested resource (get services http:heapster:)
+[root@master01 ~]# kubectl  top pod
+NAME           CPU(cores)   MEMORY(bytes)   
+requests-pod   998m         0Mi             
+[root@master01 ~]# kubectl  top pod
+NAME           CPU(cores)   MEMORY(bytes)   
+requests-pod   998m         0Mi             
+[root@master01 ~]# kubectl  top node
+NAME             CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%   
+192.168.10.242   1058m        26%    327Mi           4%        
+192.168.10.243   247m         6%     680Mi           8%        
+
+
+
+kubectl  top pod limit-pod
+NAME        CPU(cores)   MEMORY(bytes)   
+limit-pod   200m         0Mi             
+
+
+
+
+
+
+
+kubectl  describe  node 192.168.10.243
+Non-terminated Pods:         (3 in total)
+  Namespace                  Name                                    CPU Requests  CPU Limits  Memory Requests  Memory Limits
+  ---------                  ----                                    ------------  ----------  ---------------  -------------
+  kube-system                heapster-77db4c4496-sstxz               0 (0%)        0 (0%)      0 (0%)           0 (0%)
+  kube-system                monitoring-grafana-5c5fbc85b-45dtk      0 (0%)        0 (0%)      0 (0%)           0 (0%)
+  kube-system                monitoring-influxdb-679d6dfb4d-xhbs5    0 (0%)        0 (0%)      0 (0%)           0 (0%)
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource  Requests  Limits
+  --------  --------  ------
+  cpu       0 (0%)    0 (0%)
+  memory    0 (0%)    0 (0%)
+Events:     <none>
+
+
+没有数据
+重新启动 cadvisor -housekeeping_interval 10s -port 4194
+
+原因 写错了 node  243 上没有pod 没有pod 没有数据 确实没有数据
+
+kubectl  describe  node 192.168.10.243
+Non-terminated Pods:         (4 in total)
+  Namespace                  Name                                    CPU Requests  CPU Limits  Memory Requests  Memory Limits
+  ---------                  ----                                    ------------  ----------  ---------------  -------------
+  default                    limit-pod                               200m (5%)     200m (5%)   20Mi (0%)        20Mi (0%)
+  kube-system                heapster-77db4c4496-sstxz               0 (0%)        0 (0%)      0 (0%)           0 (0%)
+  kube-system                monitoring-grafana-5c5fbc85b-45dtk      0 (0%)        0 (0%)      0 (0%)           0 (0%)
+  kube-system                monitoring-influxdb-679d6dfb4d-xhbs5    0 (0%)        0 (0%)      0 (0%)           0 (0%)
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource  Requests   Limits
+  --------  --------   ------
+  cpu       200m (5%)  200m (5%)
+  memory    20Mi (0%)  20Mi (0%)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

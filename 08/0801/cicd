@@ -1,13 +1,17 @@
+模拟业务方
 从rd 去push  代码
-
-QA 拿到 源码和基础镜像 测试镜像交给 sre 拿到测试后的业务镜像去 上线
-
+测试人员QA 拿到 源码和基础镜像 测试镜像交给 sre 拿到测试后的业务镜像去 上线
 
 
-1 CRD  自定义的resource   扩展的
-2 控制器 ao pu rei ter    kafaka  rdis  es
+
+1 CRD  自定义的resource   扩展的  自定义的resource
+2 控制器 ao pu rei ter    方便各种中间件上云 kafaka  redis  es
 
 
+
+CRD   扩展的  resource 
+
+docker pull progrium/stress
 
 
 

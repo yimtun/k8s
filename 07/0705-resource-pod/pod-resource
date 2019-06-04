@@ -264,6 +264,10 @@ request 可以设置小一点 让容器可以调度到 node   limit 可以设置
 
 
 
+kubectl  top pod
+NAME        CPU(cores)   MEMORY(bytes)   
+limit-pod   199m         2Mi            
+
 
 
 
