@@ -1,0 +1,189 @@
+daemonset 没有  replica count 副本数
+
+
+清除环境
+kubectl  get pod -n default
+No resources found.
+删除 node 的标签
+
+kubectl  label nodes 192.168.10.242 192.168.10.243 k8s.51reboot.com/disk-
+node/192.168.10.242 labeled
+node/192.168.10.243 labeled
+
+
+
+
+
+ex1 不指定 nodeSelector  所有node 都会运行pod
+
+cat > ds.yaml   << EOF
+apiVersion: apps/v1beta2
+kind: DaemonSet
+metadata:
+  name: ssd-monitor
+spec:
+  selector:
+    matchLabels:
+      app: ssd-monitor
+  template:
+    metadata:
+      labels:
+        app: ssd-monitor
+    spec:
+      containers:
+      - name: main
+        image: luksa/ssd-monitor
+        imagePullPolicy: IfNotPresent
+EOF
+
+
+
+kubectl apply -f ds.yaml
+
+kubectl  get  ds ssd-monitor 
+NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+ssd-monitor   2         2         2       2            2           <none>          27s
+
+DESIRED 2 
+CURRENT 2 
+READY 2
+
+
+
+
+
+
+
+ex2 指定 nodeSelector 的 node 才会运行pod
+
+cat > ds-1.yaml  << EOF
+apiVersion: apps/v1beta2
+kind: DaemonSet
+metadata:
+  name: ssd-monitor
+spec:
+  selector:
+    matchLabels:
+      app: ssd-monitor
+  template:
+    metadata:
+      labels:
+        app: ssd-monitor
+    spec:
+      nodeSelector:
+        k8s.51reboot.com/disk: ssd
+      containers:
+      - name: main
+        image: luksa/ssd-monitor
+        imagePullPolicy: IfNotPresent
+EOF
+
+
+
+
+kubectl apply -f ds-1.yaml
+
+
+kubectl  get pod
+No resources found.
+
+
+kubectl  get ds
+NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR               AGE
+ssd-monitor   0         0         0       0            0           k8s.51reboot.com/disk=ssd   8m49s
+
+DESIRED  0
+URRENT   0
+
+清除环境 
+
+kubectl  delete ds ssd-monitor --grace-period=0 --wait=false
+
+
+ex3 给指定node  打上指定的标签 创建ds  使用node 选择器 选择 指定的标签
+
+cat > ds-1.yaml  << EOF
+apiVersion: apps/v1beta2
+kind: DaemonSet
+metadata:
+  name: ssd-monitor
+spec:
+  selector:
+    matchLabels:
+      app: ssd-monitor
+  template:
+    metadata:
+      labels:
+        app: ssd-monitor
+    spec:
+      nodeSelector:
+        k8s.51reboot.com/disk: ssd
+      containers:
+      - name: main
+        image: luksa/ssd-monitor
+        imagePullPolicy: IfNotPresent
+EOF
+
+kubectl apply -f ds-1.yaml
+
+
+
+kubectl  get ds  -w
+NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR               AGE
+ssd-monitor   0         0         0       0            0           k8s.51reboot.com/disk=ssd   33s
+ssd-monitor   1     1     0     1     0     k8s.51reboot.com/disk=ssd   52s
+ssd-monitor   1     1     1     1     1     k8s.51reboot.com/disk=ssd   54s
+
+
+
+
+
+new terminal 
+kubectl  label nodes 192.168.10.243 k8s.51reboot.com/disk=ssd
+
+label name k8s.51reboot.com
+label key disk
+label vaule ssd
+
+
+kubectl  get nodes --show-labels 
+
+kubectget pod -owide
+NAME                READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+ssd-monitor-2rsbq   1/1     Running   0          7s    172.30.13.2   192.168.10.243   <none>
+
+
+
+
+
+
+kubectl  get ds && kubectl  label nodes 192.168.10.243 k8s.51reboot.com/disk=ssd && kubectl  get ds  -w
+node/192.168.10.243 labeled
+NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR               AGE
+ssd-monitor   1         1         0       1            0           k8s.51reboot.com/disk=ssd   2m34s
+ssd-monitor   1     1     1     1     1     k8s.51reboot.com/disk=ssd   2m35s
+
+
+kubectl  get ds && kubectl  label nodes 192.168.10.243 k8s.51reboot.com/disk- && kubectl  get ds  -w
+node/192.168.10.243 labeled
+NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR               AGE
+ssd-monitor   0         0         0       0            0           k8s.51reboot.com/disk=ssd   3m2s
+
+
+kubectl  get ds && kubectl  label nodes 192.168.10.243 k8s.51reboot.com/disk- && kubectl  get ds  -w
+
+
+
+
+
+
+ds  权限可能大一下 基于特权之类   host  network
+
+kubectl  get pod ssd-monitor-2rsbq  -o yaml
+securityContext
+
+是否需要特权
+
+
+
+

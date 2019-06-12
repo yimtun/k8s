@@ -1,0 +1,357 @@
+限制ns CPU quota 一个ns  4核心 内存 4G
+
+
+可用资源总量 ResourceQuota
+
+Scopes   一个作用域
+
+
+
+quota 对存量的资源没有限制 比如存量的cpu 是4核心 
+
+创建resource quota cpu 是两核心  对之后的pod 受到影响
+
+
+上线 feature 和 disable feature  需要考虑对存量pod 资源的影响
+
+有可能当时看不出来   当业务容器触发一次变更 触发功能  影响可能就会出现了
+
+ex1 
+
+在所有的k8s 早期版本  object value    比如 secrets configmap   podinfo 在k8s 1.8 的时候 在容器里面权限是读写的
+但是在1.12 版本里面 提高了对象的安全性 变成了只读 恰好业务在dockerfile里面写了 一行脚本 改变一个目录的属主 默认是root 
+改成非root   但是 但是目录是 只读   比如 podinfo在mount下  创建爱你的目录也在mount下 整个mount 给了 自定义用户
+正好mount下有只读的 文件 就会执行失败  dockerfile 中一条命令执行失败  容器就不会启动  升级之前可以启动  升级之后 不能启动 
+
+发布更新容器  业务 发现无法启动了 
+
+业务方脚本可以排除  podinfo 目录
+
+最后 podinfo 全都干掉了  
+
+
+
+ex2 业务改了镜像 应用出问题  回滚了 回滚到之前有问题的版本 应用又启动不了了
+
+
+一点点尝试feature 
+
+
+
+
+1 在外面包一层 在数据库里面   同一个 只有一个 default    
+2 按业务线  ns
+
+kubectlcreate namespace     cloud.ops.reboot.com
+kubectlcreate namespace     cloud-ops-reboot-com
+
+
+
+
+
+
+
+
+为测试环境创建一个ns
+
+kubectl create namespace quota-mem-cpu-example
+
+将横线对应成点 
+
+
+cat << EOF >  mem-cpu-demo.yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: mem-cpu-demo
+spec:
+  hard:
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+    limits.memory: 2Gi
+EOF
+
+
+kubectl  -n  quota-mem-cpu-example create  -f  mem-cpu-demo.yaml 
+
+统计业务资源 容量 
+扩容准备    先做好  容量规划   60%  70% 准备扩容  
+
+
+kubectl  get resourcequotas  -n  quota-mem-cpu-example
+NAME           CREATED AT
+mem-cpu-demo   2019-06-10T14:22:46Z
+
+
+kubectl  get resourcequotas  -n  quota-mem-cpu-example  -o yaml
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: ResourceQuota
+  metadata:
+    creationTimestamp: 2019-06-10T14:22:46Z
+    name: mem-cpu-demo
+    namespace: quota-mem-cpu-example
+    resourceVersion: "5526491"
+    selfLink: /api/v1/namespaces/quota-mem-cpu-example/resourcequotas/mem-cpu-demo
+    uid: 37aa048a-8b8b-11e9-8483-5254003d139c
+  spec:
+    hard:
+      limits.cpu: "2"
+      limits.memory: 2Gi
+      requests.cpu: "1"
+      requests.memory: 1Gi
+  status:
+    hard:
+      limits.cpu: "2"
+      limits.memory: 2Gi
+      requests.cpu: "1"
+      requests.memory: 1Gi
+    used:
+      limits.cpu: "0"
+      limits.memory: "0"
+      requests.cpu: "0"
+      requests.memory: "0"
+kind: List
+metadata:
+  resourceVersion: ""
+  selfLink: ""
+
+
+
+used:
+      limits.cpu: "0"
+      limits.memory: "0"
+      requests.cpu: "0"
+      requests.memory: "0"
+
+
+
+创建一个符合quota限制的pod
+
+cat << EOF > quota-mem-cpu-demo.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: quota-mem-cpu-demo
+spec:
+  containers:
+  - name: quota-mem-cpu-demo-ctr
+    image: nginx
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        memory: "800Mi"
+        cpu: "800m"
+      requests:
+        memory: "600Mi"
+        cpu: "400m"
+EOF
+
+kubectl  create  -f quota-mem-cpu-demo.yaml -n quota-mem-cpu-example 
+
+kubectl  get resourcequotas  -n  quota-mem-cpu-example  -o yaml
+status:
+    hard:
+      limits.cpu: "2"
+      limits.memory: 2Gi
+      requests.cpu: "1"
+      requests.memory: 1Gi
+    used:
+      limits.cpu: 800m
+      limits.memory: 800Mi
+      requests.cpu: 400m
+      requests.memory: 600Mi
+
+
+
+
+kubectl  get   resourcequotas -n quota-mem-cpu-example  -o json  |jq .items  | jq  [.[].status]
+[
+  {
+    "hard": {
+      "limits.cpu": "2",
+      "limits.memory": "2Gi",
+      "requests.cpu": "1",
+      "requests.memory": "1Gi"
+    },
+    "used": {
+      "limits.cpu": "800m",
+      "limits.memory": "800Mi",
+      "requests.cpu": "400m",
+      "requests.memory": "600Mi"
+    }
+  }
+]
+
+
+
+kubectl  get   resourcequotas -n quota-mem-cpu-example  -o json  |jq .items  | jq  [.[].status.used]
+[
+  {
+    "limits.cpu": "800m",
+    "limits.memory": "800Mi",
+    "requests.cpu": "400m",
+    "requests.memory": "600Mi"
+  }
+]
+
+
+
+
+
+
+
+
+
+
+再创建第二个pod，尝试突破 quota 限制
+
+cat <<EOF > quota-mem-cpu-demo-2.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: quota-mem-cpu-demo-2
+spec:
+  containers:
+  - name: quota-mem-cpu-demo-2-ctr
+    image: redis
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        memory: "1Gi"
+        cpu: "800m"      
+      requests:
+        memory: "700Mi"
+        cpu: "400m"
+EOF
+
+
+kubectl create -f quota-mem-cpu-demo-2.yaml  --namespace=quota-mem-cpu-example
+Error from server (Forbidden): error when creating "quota-mem-cpu-demo-2.yaml": pods "quota-mem-cpu-demo-2" is forbidden: exceeded quota: mem-cpu-demo, requested: requests.memory=700Mi, used: requests.memory=600Mi, limited: requests.memory=1Gi
+
+
+
+
+ex 4
+
+pr  只 
+如果只创建了quota，在没有limitrange的情况下，并且不指定 resources， 是否可以创建 pod 呢
+
+cat <<EOF > quota-mem-cpu-demo-2.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: quota-mem-cpu-demo-2
+spec:
+  containers:
+  - name: quota-mem-cpu-demo-2-ctr
+    image: redis
+    imagePullPolicy: IfNotPresent
+EOF
+
+
+kubectl create -f quota-mem-cpu-demo-2.yaml  --namespace=quota-mem-cpu-example
+Error from server (Forbidden): error when creating "quota-mem-cpu-demo-2.yaml": pods "quota-mem-cpu-demo-2" is forbidden: failed quota: mem-cpu-demo: must specify limits.cpu,limits.memory,requests.cpu,requests.memory
+
+
+
+必须指定  指定了才可以被计算
+
+
+cat <<EOF > quota-mem-cpu-demo-2.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: quota-mem-cpu-demo-2
+spec:
+  containers:
+  - name: quota-mem-cpu-demo-2-ctr
+    image: nginx
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        memory: "1Gi"
+        cpu: "800m"
+      requests:
+        memory: "70Mi"
+        cpu: "40m"
+EOF
+
+
+kubectl create -f quota-mem-cpu-demo-2.yaml  --namespace=quota-mem-cpu-example
+
+
+
+kubectl  get   resourcequotas -n quota-mem-cpu-example  -o json  |jq .items  | jq  [.[].status.used]
+[
+  {
+    "limits.cpu": "1600m",
+    "limits.memory": "1824Mi",
+    "requests.cpu": "440m",
+    "requests.memory": "670Mi"
+  }
+]
+
+
+
+业务线 下云  清空
+kubectl delete namespace quota-mem-cpu-example
+
+
+
+CNI 融合 
+
+
+podinfo 
+
+```
+https://kubernetes.io/docs/tasks/inject-data-application/downward-api-volume-expose-pod-information/#capabilities-of-the-downward-api
+
+```
+
+
+
+
+1 在master上生成 bootstarp token 放在kubelet bootstrap  config 里面  把config 拷贝到node 上  然后通过kubelet 参数指定运行起来 
+
+2 ipam     vlan 网络建vlan  划分    vlan id        初始化的时候把ID 放在接口   CNI config 里面
+
+
+podinfo  需要知道 自己的  详情  /etc/
+
+
+
+CNI 工作流程
+quota 实现
+
+线上不停的crash 原因
+
+发布更新 无法启动 从哪几个点排查
+
+storage dirver  网络插件
+overlay fs
+
+
+架构  容器日志  开发
+
+数据结构 算法
+
+
+源码级别 
+
+resource quota workload  service 核心 
+
+
+
+
+
+
+
+
+
+
+
+
+

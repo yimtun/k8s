@@ -1,0 +1,33 @@
+kubectl run  alpine  --image=alpine  --image=alpine --generator=v1/pod --name=tool --command sleep 1000 ???
+
+
+kubectl run  alpine  --image=alpine  --image=alpine --generator=v1/pod  --command sleep 1000 ???
+kubectl run --generator=v1/pod is DEPRECATED and will be removed in a future version. Use kubectl create instead.
+error: generator "v1/pod" not found
+See 'kubectl run -h' for help and examples.
+
+kubectl run -h |  grep generator
+      --generator='': The name of the API generator to use, see http://kubernetes.io/docs/user-guide/kubectl-conventions/#generators for a list.
+      --service-generator='service/v2': The name of the generator to use for creating a service.  Only used if --expose is true
+
+
+https://kubernetes.io/docs/reference/kubectl/conventions/#generators
+
+--generator=run-pod/v1
+
+
+
+
+kubectl run  alpine  --image=alpine --generator=run-pod/v1   --command sleep 3000
+
+kubectl run  alpine  --image=alpine --restart=Never  --command sleep 3000
+
+
+kubectl run  tool   --image=centos  --restart=Never  --image-pull-policy=IfNotPresent --command sleep 3000
+
+kubectl exec tool -- curl 10.254.180.200:80
+
+
+深入挖掘 学到东西
+
+

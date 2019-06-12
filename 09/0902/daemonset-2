@@ -1,0 +1,213 @@
+两个node 创建一个 三个副本的rs
+
+可能一个node  会有两个pod   极端场景下 会有三个pod 在一个node 上
+
+
+node 上所有的 pod 都共用一个服务  可以使用 daemonset
+
+可以把 kube-proxy  做成 ds
+
+kubectl -n test get ds
+
+
+
+
+ds 如果不指定 nodeSelector    
+
+spec.template.nodeSelector   默认就是所有 node
+
+pr 
+
+
+查看node  显示 label
+
+kubectl  get node  --show-labels 
+NAME             STATUS   ROLES    AGE   VERSION        LABELS
+192.168.10.242   Ready    <none>   42h   v1.12.0-rc.2   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/hostname=192.168.10.242
+192.168.10.243   Ready    <none>   42h   v1.12.0-rc.2   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/hostname=192.168.10.243
+
+
+
+
+
+Taints :  NoSchedule   容忍污点   node   describe
+
+Toleratios:  pod      pod describe 
+
+
+
+
+
+kubectlabel node xx xxx  la-
+
+
+desired  0   匹配到label 就会变成1  DESIRED  1
+
+
+kubectl get nodes --show-labels
+
+查看k8s label
+
+
+
+
+ex1  
+
+mkdir /ds
+cd /ds
+
+
+cat > ssd-monitor-daemonset.yaml  << EOF
+apiVersion: apps/v1beta2
+kind: DaemonSet
+metadata:
+  name: ssd-monitor
+spec:
+  selector:
+    matchLabels:
+      app: ssd-monitor
+  template:
+    metadata:
+      labels:
+        app: ssd-monitor
+    spec:
+      nodeSelector:
+        k8s.51reboot.com/disk: ssd
+      containers:
+      - name: main
+        image: luksa/ssd-monitor
+        imagePullPolicy: IfNotPresent
+EOF
+
+
+
+kubectl -n test create -f ssd-monitor-daemonset.yaml
+
+kubectl -n test  get ds
+NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR               AGE
+ssd-monitor   0         0         0       0            0           k8s.51reboot.com/disk=ssd   7s
+
+
+kubectl  label nodes 192.168.10.243 k8s.51reboot.com/disk=ssd
+node/192.168.10.243 labeled
+
+kubectl -n test  get ds
+NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR               AGE
+ssd-monitor   1         1         0       1            0           k8s.51reboot.com/disk=ssd   61s
+
+
+
+
+kubectl  get node --show-labels  
+NAME             STATUS   ROLES    AGE   VERSION        LABELS
+192.168.10.242   Ready    <none>   42h   v1.12.0-rc.2   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/hostname=192.168.10.242
+192.168.10.243   Ready    <none>   42h   v1.12.0-rc.2   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,k8s.51reboot.com/disk=ssd,kubernetes.io/hostname=192.168.10.243
+
+
+
+kubectl  -n test get ds -owide
+NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR               AGE    CONTAINERS   IMAGES              SELECTOR
+ssd-monitor   1         1         1       1            1           k8s.51reboot.com/disk=ssd   2m3s   main         luksa/ssd-monitor   app=ssd-monitor
+
+
+kubectl  -n test get pod
+NAME                READY   STATUS    RESTARTS   AGE
+kubia-9qhvq         1/1     Running   0          85m
+kubia-fqzld         1/1     Running   0          74m
+ssd-monitor-ggndc   1/1     Running   0          2m12s
+
+
+删除标签
+
+kubectl label nodes 192.168.10.243 k8s.51reboot.com/disk-
+
+
+ds  创建的pod 被删除
+
+kubectl  -n test get pod
+NAME          READY   STATUS    RESTARTS   AGE
+kubia-9qhvq   1/1     Running   0          86m
+kubia-fqzld   1/1     Running   0          75m
+
+
+kubectl  -n test get ds -owide
+NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR               AGE     CONTAINERS   IMAGES              SELECTOR
+ssd-monitor   0         0         0       0            0           k8s.51reboot.com/disk=ssd   4m54s   main         luksa/ssd-monitor   app=ssd-monitor
+
+
+
+
+ex2
+kubectl  label nodes 192.168.10.242 192.168.10.243 k8s.51reboot.com/disk=ssd   
+
+kubectl  -n test get ds -owide
+NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR               AGE     CONTAINERS   IMAGES              SELECTOR
+ssd-monitor   2         2         2       2            2           k8s.51reboot.com/disk=ssd   5m52s   main         luksa/ssd-monitor   app=ssd-monitor
+
+
+kubectl  -n test get pod -l app=ssd-monitor -o wide  
+NAME                READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+ssd-monitor-558rd   1/1     Running   0          39s   172.30.48.5   192.168.10.242   <none>
+ssd-monitor-rshpd   1/1     Running   0          39s   172.30.32.5   192.168.10.243   <none>
+
+kubectl  cordon 192.168.10.243
+
+kubectl  get node
+NAME             STATUS                     ROLES    AGE   VERSION
+192.168.10.242   Ready                      <none>   42h   v1.12.0-rc.2
+192.168.10.243   Ready,SchedulingDisabled   <none>   42h   v1.12.0-rc.2
+
+
+kubectl  -n test get pod -l app=ssd-monitor -o wide   
+NAME                READY   STATUS    RESTARTS   AGE     IP            NODE             NOMINATED NODE
+ssd-monitor-558rd   1/1     Running   0          2m10s   172.30.48.5   192.168.10.242   <none>
+ssd-monitor-rshpd   1/1     Running   0          2m10s   172.30.32.5   192.168.10.243   <none>
+
+
+kubectl  get node  
+NAME             STATUS                     ROLES    AGE   VERSION
+192.168.10.242   Ready                      <none>   42h   v1.12.0-rc.2
+192.168.10.243   Ready,SchedulingDisabled   <none>   42h   v1.12.0-rc.2
+
+
+kubectl  -n test   delete  -f ssd-monitor-daemonset.yaml
+
+kubectl  -n test get pod -l app=ssd-monitor -o wide   
+No resources found.
+
+kubectl  -n test create    -f ssd-monitor-daemonset.yaml
+
+
+
+
+
+
+
+思考：如果node设置为unschedule状态，daemonset的行为是什么？
+设置不可调度
+
+1 存量pod会不会受影响   
+
+2 先 unschedule 一个node 再创建ds ds 的pod 能否调度到 置为 unschedule 的节点
+
+kubectl cordon 192.168.10.
+
+
+
+
+
+
+
+
+
+思考：如果把kube-scheduler 调度器停掉呢？ds是什么行为？  无法调度   ds 早期版本不受 scheduler 调度 新版本 受
+
+
+
+
+
+kube-proxy 也可以使用ds   他也是一个基础类服务
+
+
+
+重新创建 ds

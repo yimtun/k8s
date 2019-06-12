@@ -1,0 +1,599 @@
+kubectl get pods  --selector=app=kubia  -owide 
+NAME          READY   STATUS    RESTARTS   AGE   IP             NODE             NOMINATED NODE
+kubia-j4v59   1/1     Running   0          12m   172.30.6.6     192.168.10.242   <none>
+kubia-ptnps   1/1     Running   0          25m   172.30.13.8    192.168.10.243   <none>
+kubia-wh7cq   1/1     Running   0          10m   172.30.13.10   192.168.10.243   <none>
+
+模拟节点故障
+
+kubectl get pod  -owide  -n kube-system 
+NAME                                    READY   STATUS    RESTARTS   AGE     IP            NODE             NOMINATED NODE
+coredns-779ffd89bd-p9sr8                1/1     Running   0          6d14h   172.30.6.4    192.168.10.242   <none>
+heapster-77db4c4496-sstxz               1/1     Running   2          52d     172.30.13.2   192.168.10.243   <none>
+kubernetes-dashboard-659798bd99-ppfs7   1/1     Running   0          6d14h   172.30.6.2    192.168.10.242   <none>
+monitoring-grafana-5c5fbc85b-45dtk      1/1     Running   2          52d     172.30.13.5   192.168.10.243   <none>
+monitoring-influxdb-679d6dfb4d-xhbs5    1/1     Running   1          43d     172.30.13.6   192.168.10.243   <none>
+
+
+
+停 243
+
+
+kubectl get pods  --selector=app=kubia  -owide -w
+NAME          READY   STATUS    RESTARTS   AGE   IP             NODE             NOMINATED NODE
+kubia-j4v59   1/1     Running   0          18m   172.30.6.6     192.168.10.242   <none>
+kubia-ptnps   1/1     Running   0          31m   172.30.13.8    192.168.10.243   <none>
+kubia-wh7cq   1/1     Running   0          16m   172.30.13.10   192.168.10.243   <none>
+kubia-ptnps   1/1   NodeLost   0     34m   172.30.13.8   192.168.10.243   <none>
+kubia-ptnps   1/1   Unknown   0     34m   172.30.13.8   192.168.10.243   <none>
+kubia-wh7cq   1/1   NodeLost   0     19m   172.30.13.10   192.168.10.243   <none>
+kubia-wh7cq   1/1   Unknown   0     19m   172.30.13.10   192.168.10.243   <none>
+kubia-4gjs9   0/1   Pending   0     0s    <none>   <none>   <none>
+kubia-4gjs9   0/1   Pending   0     0s    <none>   192.168.10.242   <none>
+kubia-shc67   0/1   Pending   0     0s    <none>   <none>   <none>
+kubia-shc67   0/1   Pending   0     0s    <none>   192.168.10.242   <none>
+kubia-4gjs9   0/1   ContainerCreating   0     0s    <none>   192.168.10.242   <none>
+kubia-shc67   0/1   ContainerCreating   0     0s    <none>   192.168.10.242   <none>
+kubia-shc67   1/1   Running   0     3s    172.30.6.9   192.168.10.242   <none>
+kubia-4gjs9   1/1   Running   0     3s    172.30.6.10   192.168.10.242   <none>
+
+
+
+
+
+
+ssh root@192.168.10.243 "systemctl  stop kubelet"
+
+ssh root@192.168.10.243 "systemctl  status kubelet" | grep Active
+   Active: inactive (dead) since Tue 2019-06-11 14:35:05 CST; 14s ago
+
+
+kubectl  get node -o wide -w
+NAME             STATUS     ROLES    AGE   VERSION        INTERNAL-IP      EXTERNAL-IP   OS-IMAGE                KERNEL-VERSION          CONTAINER-RUNTIME
+192.168.10.242   Ready      <none>   52d   v1.12.0-rc.2   192.168.10.242   <none>        CentOS Linux 7 (Core)   3.10.0-957.el7.x86_64   docker://18.6.1
+192.168.10.243   NotReady   <none>   52d   v1.12.0-rc.2   192.168.10.243   <none>        CentOS Linux 7 (Core)   3.10.0-957.el7.x86_64   docker://18.6.1
+192.168.10.242   Ready   <none>   52d   v1.12.0-rc.2   192.168.10.242   <none>   CentOS Linux 7 (Core)   3.10.0-957.el7.x86_64   docker://18.6.1
+192.168.10.242   Ready   <none>   52d   v1.12.0-rc.2   192.168.10.242   <none>   CentOS Linux 7 (Core)   3.10.0-957.el7.x86_64   docker://18.6.1
+192.168.10.242   Ready   <none>   52d   v1.12.0-rc.2   192.168.10.242   <none>   CentOS Linux 7 (Core)   3.10.0-957.el7.x86_64   docker://18.6.1
+192.168.10.242   Ready   <none>   52d   v1.12.0-rc.2   192.168.10.242   <none>   CentOS Linux 7 (Core)   3.10.0-957.el7.x86_64   docker://18.6.1
+
+
+
+
+
+
+
+将pod移入或移出 ReplicaController
+
+kubectl  get pod  --selector=app=kubia   --show-labels  -owide
+NAME          READY   STATUS    RESTARTS   AGE     IP             NODE             NOMINATED NODE   LABELS
+kubia-4gjs9   1/1     Running   0          2m33s   172.30.6.10    192.168.10.242   <none>           app=kubia
+kubia-j4v59   1/1     Running   0          23m     172.30.6.6     192.168.10.242   <none>           app=kubia
+kubia-ptnps   1/1     Unknown   0          36m     172.30.13.8    192.168.10.243   <none>           app=kubia
+kubia-shc67   1/1     Running   0          2m33s   172.30.6.9     192.168.10.242   <none>           app=kubia
+kubia-wh7cq   1/1     Unknown   0          21m     172.30.13.10   192.168.10.243   <none>           app=kubia
+
+
+
+kubectl label pod kubia-shc67  type=debug
+
+kubectl  get pod  --selector=app=kubia   --show-labels  -owide
+NAME          READY   STATUS    RESTARTS   AGE     IP             NODE             NOMINATED NODE   LABELS
+kubia-4gjs9   1/1     Running   0          3m38s   172.30.6.10    192.168.10.242   <none>           app=kubia
+kubia-j4v59   1/1     Running   0          24m     172.30.6.6     192.168.10.242   <none>           app=kubia
+kubia-ptnps   1/1     Unknown   0          37m     172.30.13.8    192.168.10.243   <none>           app=kubia
+kubia-shc67   1/1     Running   0          3m38s   172.30.6.9     192.168.10.242   <none>           app=kubia,type=debug
+kubia-wh7cq   1/1     Unknown   0          22m     172.30.13.10   192.168.10.243   <none>           app=kubia
+
+
+
+给其中一个pod添加了一个新的 type=debug 标签之后， 对于ReplicaController来说，是没有发生任何更改的；
+
+更改ReplicaController中pod的标签
+
+
+kubectl  get pod  --selector=app=kubia   --show-labels  -owide -w
+
+kubectl label pod kubia-4gjs9 app=foo --overwrite
+
+更改标签 会重新创建
+
+
+
+kubectl get pod -L app
+NAME           READY   STATUS    RESTARTS   AGE     APP
+kubia-4gjs9    1/1     Running   0          9m46s   foo
+kubia-j4v59    1/1     Running   0          30m     kubia
+kubia-pq4j6    1/1     Running   0          2m31s   kubia
+kubia-ptnps    1/1     Unknown   0          44m     kubia
+kubia-shc67    1/1     Running   0          9m46s   kubia
+kubia-wh7cq    1/1     Unknown   0          29m     kubia
+limit-pod      1/1     Unknown   0          6d13h   
+requests-pod   1/1     Running   0          6d15h   
+
+
+-L  只看lable 的key 
+
+
+kubectl get pod -L app -o wide
+NAME           READY   STATUS    RESTARTS   AGE     IP             NODE             NOMINATED NODE   APP
+kubia-4gjs9    1/1     Running   0          11m     172.30.6.10    192.168.10.242   <none>           foo
+kubia-j4v59    1/1     Running   0          31m     172.30.6.6     192.168.10.242   <none>           kubia
+kubia-pq4j6    1/1     Running   0          3m52s   172.30.6.11    192.168.10.242   <none>           kubia
+kubia-ptnps    1/1     Unknown   0          45m     172.30.13.8    192.168.10.243   <none>           kubia
+kubia-shc67    1/1     Running   0          11m     172.30.6.9     192.168.10.242   <none>           kubia
+kubia-wh7cq    1/1     Unknown   0          30m     172.30.13.10   192.168.10.243   <none>           kubia
+limit-pod      1/1     Unknown   0          6d13h   172.30.13.3    192.168.10.243   <none>           
+requests-pod   1/1     Running   0          6d15h   172.30.6.3     192.168.10.242   <none>           
+
+
+
+kubectl get pod -L app -o wide --show-labels 
+NAME           READY   STATUS    RESTARTS   AGE     IP             NODE             NOMINATED NODE   APP     LABELS
+kubia-4gjs9    1/1     Running   0          11m     172.30.6.10    192.168.10.242   <none>           foo     app=foo
+kubia-j4v59    1/1     Running   0          32m     172.30.6.6     192.168.10.242   <none>           kubia   app=kubia
+kubia-pq4j6    1/1     Running   0          4m11s   172.30.6.11    192.168.10.242   <none>           kubia   app=kubia
+kubia-ptnps    1/1     Unknown   0          45m     172.30.13.8    192.168.10.243   <none>           kubia   app=kubia
+kubia-shc67    1/1     Running   0          11m     172.30.6.9     192.168.10.242   <none>           kubia   app=kubia,type=debug
+kubia-wh7cq    1/1     Unknown   0          30m     172.30.13.10   192.168.10.243   <none>           kubia   app=kubia
+limit-pod      1/1     Unknown   0          6d13h   172.30.13.3    192.168.10.243   <none>                   <none>
+requests-pod   1/1     Running   0          6d15h   172.30.6.3     192.168.10.242   <none>                   <none>
+
+
+其中有是脱离组织的   Unknown   
+
+
+
+水平伸缩
+
+kubectl  get pod  --selector=app=kubia   --show-labels  -owide -w
+NAME          READY   STATUS    RESTARTS   AGE     IP             NODE             NOMINATED NODE   LABELS
+kubia-j4v59   1/1     Running   0          34m     172.30.6.6     192.168.10.242   <none>           app=kubia
+kubia-pq4j6   1/1     Running   0          6m39s   172.30.6.11    192.168.10.242   <none>           app=kubia
+kubia-ptnps   1/1     Unknown   0          48m     172.30.13.8    192.168.10.243   <none>           app=kubia
+kubia-shc67   1/1     Running   0          13m     172.30.6.9     192.168.10.242   <none>           app=kubia,type=debug
+kubia-wh7cq   1/1     Unknown   0          33m     172.30.13.10   192.168.10.243   <none>           app=kubia
+
+
+kubia-jxs6n   0/1   Pending   0     0s    <none>   <none>   <none>   app=kubia
+kubia-jxs6n   0/1   Pending   0     0s    <none>   192.168.10.242   <none>   app=kubia
+kubia-hnn8w   0/1   Pending   0     0s    <none>   <none>   <none>   app=kubia
+kubia-z644w   0/1   Pending   0     0s    <none>   <none>   <none>   app=kubia
+kubia-hnn8w   0/1   Pending   0     0s    <none>   192.168.10.242   <none>   app=kubia
+kubia-4mz8j   0/1   Pending   0     0s    <none>   <none>   <none>   app=kubia
+kubia-z644w   0/1   Pending   0     0s    <none>   192.168.10.242   <none>   app=kubia
+kubia-qtclv   0/1   Pending   0     0s    <none>   <none>   <none>   app=kubia
+kubia-tkzk7   0/1   Pending   0     0s    <none>   <none>   <none>   app=kubia
+kubia-ptrsp   0/1   Pending   0     0s    <none>   <none>   <none>   app=kubia
+kubia-jxs6n   0/1   ContainerCreating   0     0s    <none>   192.168.10.242   <none>   app=kubia
+kubia-qtclv   0/1   Pending   0     0s    <none>   192.168.10.242   <none>   app=kubia
+kubia-tkzk7   0/1   Pending   0     0s    <none>   192.168.10.242   <none>   app=kubia
+kubia-ptrsp   0/1   Pending   0     0s    <none>   192.168.10.242   <none>   app=kubia
+kubia-4mz8j   0/1   Pending   0     0s    <none>   192.168.10.242   <none>   app=kubia
+kubia-hnn8w   0/1   ContainerCreating   0     0s    <none>   192.168.10.242   <none>   app=kubia
+kubia-z644w   0/1   ContainerCreating   0     0s    <none>   192.168.10.242   <none>   app=kubia
+kubia-qtclv   0/1   ContainerCreating   0     0s    <none>   192.168.10.242   <none>   app=kubia
+kubia-tkzk7   0/1   ContainerCreating   0     0s    <none>   192.168.10.242   <none>   app=kubia
+kubia-ptrsp   0/1   ContainerCreating   0     0s    <none>   192.168.10.242   <none>   app=kubia
+kubia-4mz8j   0/1   ContainerCreating   0     0s    <none>   192.168.10.242   <none>   app=kubia
+kubia-tkzk7   1/1   Running   0     2s    172.30.6.14   192.168.10.242   <none>   app=kubia
+kubia-z644w   1/1   Running   0     2s    172.30.6.13   192.168.10.242   <none>   app=kubia
+kubia-jxs6n   1/1   Running   0     2s    172.30.6.12   192.168.10.242   <none>   app=kubia
+kubia-4mz8j   1/1   Running   0     2s    172.30.6.16   192.168.10.242   <none>   app=kubia
+kubia-hnn8w   1/1   Running   0     2s    172.30.6.18   192.168.10.242   <none>   app=kubia
+kubia-ptrsp   1/1   Running   0     3s    172.30.6.17   192.168.10.242   <none>   app=kubia
+kubia-qtclv   1/1   Running   0     3s    172.30.6.15   192.168.10.242   <none>   app=kubia
+
+
+
+kubectl scale rc kubia --replicas=10
+
+
+恢复 243
+
+ssh root@192.168.10.243 "systemctl  start kubelet"
+
+kubectl  get node -o wide -w
+NAME             STATUS     ROLES    AGE   VERSION        INTERNAL-IP      EXTERNAL-IP   OS-IMAGE                KERNEL-VERSION          CONTAINER-RUNTIME
+192.168.10.242   Ready      <none>   52d   v1.12.0-rc.2   192.168.10.242   <none>        CentOS Linux 7 (Core)   3.10.0-957.el7.x86_64   docker://18.6.1
+192.168.10.243   NotReady   <none>   52d   v1.12.0-rc.2   192.168.10.243   <none>        CentOS Linux 7 (Core)   3.10.0-957.el7.x86_64   docker://18.6.1
+192.168.10.243   Ready   <none>   52d   v1.12.0-rc.2   192.168.10.243   <none>   CentOS Linux 7 (Core)   3.10.0-957.el7.x86_64   docker://18.6.1
+192.168.10.243   Ready   <none>   52d   v1.12.0-rc.2   192.168.10.243   <none>   CentOS Linux 7 (Core)   3.10.0-957.el7.x86_64   docker://18.6.1
+
+
+
+kubectl  get pod  --selector=app=kubia   --show-labels  -owide 
+NAME          READY   STATUS    RESTARTS   AGE     IP            NODE             NOMINATED NODE   LABELS
+kubia-4mz8j   1/1     Running   0          3m31s   172.30.6.16   192.168.10.242   <none>           app=kubia
+kubia-hnn8w   1/1     Running   0          3m31s   172.30.6.18   192.168.10.242   <none>           app=kubia
+kubia-j4v59   1/1     Running   0          38m     172.30.6.6    192.168.10.242   <none>           app=kubia
+kubia-jxs6n   1/1     Running   0          3m31s   172.30.6.12   192.168.10.242   <none>           app=kubia
+kubia-pq4j6   1/1     Running   0          10m     172.30.6.11   192.168.10.242   <none>           app=kubia
+kubia-ptrsp   1/1     Running   0          3m31s   172.30.6.17   192.168.10.242   <none>           app=kubia
+kubia-qtclv   1/1     Running   0          3m31s   172.30.6.15   192.168.10.242   <none>           app=kubia
+kubia-shc67   1/1     Running   0          17m     172.30.6.9    192.168.10.242   <none>           app=kubia,type=debug
+kubia-tkzk7   1/1     Running   0          3m31s   172.30.6.14   192.168.10.242   <none>           app=kubia
+kubia-z644w   1/1     Running   0          3m31s   172.30.6.13   192.168.10.242   <none>           app=kubia
+
+
+Unknown pod 失联 后恢复了 然是 rc 够了  就需要 Terminating 删掉
+
+
+
+kubectl  get pod  --selector=app=kubia   --show-labels  -owide  -w
+NAME          READY   STATUS    RESTARTS   AGE     IP            NODE             NOMINATED NODE   LABELS
+kubia-4mz8j   1/1     Running   0          5m37s   172.30.6.16   192.168.10.242   <none>           app=kubia
+kubia-hnn8w   1/1     Running   0          5m37s   172.30.6.18   192.168.10.242   <none>           app=kubia
+kubia-j4v59   1/1     Running   0          40m     172.30.6.6    192.168.10.242   <none>           app=kubia
+kubia-jxs6n   1/1     Running   0          5m37s   172.30.6.12   192.168.10.242   <none>           app=kubia
+kubia-pq4j6   1/1     Running   0          12m     172.30.6.11   192.168.10.242   <none>           app=kubia
+kubia-ptrsp   1/1     Running   0          5m37s   172.30.6.17   192.168.10.242   <none>           app=kubia
+kubia-qtclv   1/1     Running   0          5m37s   172.30.6.15   192.168.10.242   <none>           app=kubia
+kubia-shc67   1/1     Running   0          19m     172.30.6.9    192.168.10.242   <none>           app=kubia,type=debug
+kubia-tkzk7   1/1     Running   0          5m37s   172.30.6.14   192.168.10.242   <none>           app=kubia
+kubia-z644w   1/1     Running   0          5m37s   172.30.6.13   192.168.10.242   <none>           app=kubia
+kubia-4mz8j   1/1   Terminating   0     5m40s   172.30.6.16   192.168.10.242   <none>   app=kubia
+kubia-z644w   1/1   Terminating   0     5m40s   172.30.6.13   192.168.10.242   <none>   app=kubia
+kubia-tkzk7   1/1   Terminating   0     5m40s   172.30.6.14   192.168.10.242   <none>   app=kubia
+kubia-qtclv   1/1   Terminating   0     5m40s   172.30.6.15   192.168.10.242   <none>   app=kubia
+kubia-ptrsp   1/1   Terminating   0     5m40s   172.30.6.17   192.168.10.242   <none>   app=kubia
+
+
+
+
+缩容
+kubectl scale rc kubia --replicas=5
+kubectl scale rc kubia --replicas=2
+
+
+
+
+
+
+修改rc 的   selector foo   labels foo
+
+kubectl scale rc kubia --replicas=2
+
+
+
+metadata
+labels    
+app: kubia1
+
+spec
+selector
+app: kubia1
+
+spec:
+  template:
+      labels:
+        app: kubia1
+
+
+
+
+kubectl edit rc kubia
+
+kubectl  get rc kubia  -o yaml > kubia.yaml
+
+cat >  kubia.yaml   << EOF
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  creationTimestamp: 2019-06-11T06:05:44Z
+  generation: 4
+  labels:
+    app: kubia1
+  name: kubia
+  namespace: default
+  resourceVersion: "5605027"
+  selfLink: /api/v1/namespaces/default/replicationcontrollers/kubia
+  uid: f3245dd9-8c0e-11e9-8483-5254003d139c
+spec:
+  replicas: 2
+  selector:
+    app: kubia1
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: kubia1
+    spec:
+      containers:
+      - image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        name: kubia
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+status:
+  availableReplicas: 1
+  fullyLabeledReplicas: 1
+  observedGeneration: 4
+  readyReplicas: 1
+  replicas: 1
+EOF
+
+
+kubectl  apply  -f kubia.yaml 
+Warning: kubectl apply should be used on resource created by either kubectl create --save-config or kubectl apply
+Error from server (Conflict): error when applying patch:
+{"metadata":{"annotations":{"kubectl.kubernetes.io/last-applied-configuration":"{\"apiVersion\":\"v1\",\"kind\":\"ReplicationController\",\"metadata\":{\"annotations\":{},\"creationTimestamp\":\"2019-06-11T06:05:44Z\",\"generation\":4,\"labels\":{\"app\":\"kubia1\"},\"name\":\"kubia\",\"namespace\":\"default\",\"resourceVersion\":\"5605027\",\"selfLink\":\"/api/v1/namespaces/default/replicationcontrollers/kubia\",\"uid\":\"f3245dd9-8c0e-11e9-8483-5254003d139c\"},\"spec\":{\"replicas\":2,\"selector\":{\"app\":\"kubia1\"},\"template\":{\"metadata\":{\"creationTimestamp\":null,\"labels\":{\"app\":\"kubia1\"}},\"spec\":{\"containers\":[{\"image\":\"luksa/kubia\",\"imagePullPolicy\":\"IfNotPresent\",\"name\":\"kubia\",\"ports\":[{\"containerPort\":8080,\"protocol\":\"TCP\"}],\"resources\":{},\"terminationMessagePath\":\"/dev/termination-log\",\"terminationMessagePolicy\":\"File\"}],\"dnsPolicy\":\"ClusterFirst\",\"restartPolicy\":\"Always\",\"schedulerName\":\"default-scheduler\",\"securityContext\":{},\"terminationGracePeriodSeconds\":30}}},\"status\":{\"availableReplicas\":1,\"fullyLabeledReplicas\":1,\"observedGeneration\":4,\"readyReplicas\":1,\"replicas\":1}}\n"},"generation":4,"labels":{"app":"kubia1"},"resourceVersion":"5605027"},"spec":{"selector":{"app":"kubia1"},"template":{"metadata":{"labels":{"app":"kubia1"}}}},"status":{"availableReplicas":1,"fullyLabeledReplicas":1,"observedGeneration":4,"readyReplicas":1,"replicas":1}}
+to:
+Resource: "/v1, Resource=replicationcontrollers", GroupVersionKind: "/v1, Kind=ReplicationController"
+Name: "kubia", Namespace: "default"
+Object: &{map["status":map["replicas":'\x02' "fullyLabeledReplicas":'\x02' "readyReplicas":'\x02' "availableReplicas":'\x02' "observedGeneration":'\x05'] "kind":"ReplicationController" "apiVersion":"v1" "metadata":map["selfLink":"/api/v1/namespaces/default/replicationcontrollers/kubia" "uid":"f3245dd9-8c0e-11e9-8483-5254003d139c" "resourceVersion":"5606133" "generation":'\x05' "creationTimestamp":"2019-06-11T06:05:44Z" "labels":map["app":"kubia"] "name":"kubia" "namespace":"default"] "spec":map["replicas":'\x02' "selector":map["app":"kubia"] "template":map["metadata":map["creationTimestamp":<nil> "labels":map["app":"kubia"]] "spec":map["terminationGracePeriodSeconds":'\x1e' "dnsPolicy":"ClusterFirst" "securityContext":map[] "schedulerName":"default-scheduler" "containers":[map["terminationMessagePolicy":"File" "imagePullPolicy":"IfNotPresent" "name":"kubia" "image":"luksa/kubia" "ports":[map["containerPort":'\u1f90' "protocol":"TCP"]] "resources":map[] "terminationMessagePath":"/dev/termination-log"]] "restartPolicy":"Always"]]]]}
+for: "kubia.yaml": Operation cannot be fulfilled on replicationcontrollers "kubia": the object has been modified; please apply your changes to the latest version and try again
+[root@master01 ~]# echo $?
+1
+
+
+
+kubectl  get rc kubia  -o yaml > kubia.yaml
+
+
+vim kubia.yaml
+
+```
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  creationTimestamp: 2019-06-11T06:05:44Z
+  generation: 5
+  labels:
+    app: kubia1
+  name: kubia
+  namespace: default
+  resourceVersion: "5606133"
+  selfLink: /api/v1/namespaces/default/replicationcontrollers/kubia
+  uid: f3245dd9-8c0e-11e9-8483-5254003d139c
+spec:
+  replicas: 2
+  selector:
+    app: kubia1
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: kubia1
+```
+
+
+kubectl  apply  -f kubia.yaml
+Warning: kubectl apply should be used on resource created by either kubectl create --save-config or kubectl apply
+replicationcontroller/kubia configured
+
+
+
+```
+kubectl  get rc kubia  -o yaml
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"ReplicationController","metadata":{"annotations":{},"creationTimestamp":"2019-06-11T06:05:44Z","generation":5,"labels":{"app":"kubia1"},"name":"kubia","namespace":"default","resourceVersion":"5606133","selfLink":"/api/v1/namespaces/default/replicationcontrollers/kubia","uid":"f3245dd9-8c0e-11e9-8483-5254003d139c"},"spec":{"replicas":2,"selector":{"app":"kubia1"},"template":{"metadata":{"creationTimestamp":null,"labels":{"app":"kubia1"}},"spec":{"containers":[{"image":"luksa/kubia","imagePullPolicy":"IfNotPresent","name":"kubia","ports":[{"containerPort":8080,"protocol":"TCP"}],"resources":{},"terminationMessagePath":"/dev/termination-log","terminationMessagePolicy":"File"}],"dnsPolicy":"ClusterFirst","restartPolicy":"Always","schedulerName":"default-scheduler","securityContext":{},"terminationGracePeriodSeconds":30}}},"status":{"availableReplicas":2,"fullyLabeledReplicas":2,"observedGeneration":5,"readyReplicas":2,"replicas":2}}
+  creationTimestamp: 2019-06-11T06:05:44Z
+  generation: 6
+  labels:
+    app: kubia1
+  name: kubia
+  namespace: default
+  resourceVersion: "5606601"
+  selfLink: /api/v1/namespaces/default/replicationcontrollers/kubia
+  uid: f3245dd9-8c0e-11e9-8483-5254003d139c
+spec:
+  replicas: 2
+  selector:
+    app: kubia1
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: kubia1
+    spec:
+      containers:
+      - image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        name: kubia
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+status:
+  availableReplicas: 2
+  fullyLabeledReplicas: 2
+  observedGeneration: 6
+  readyReplicas: 2
+  replicas: 2
+```
+
+
+kubectl  get  pod --selector=app=kubia  -owide
+NAME          READY   STATUS    RESTARTS   AGE     IP            NODE             NOMINATED NODE
+kubia-j4v59   1/1     Running   0          62m     172.30.6.6    192.168.10.242   <none>
+kubia-z6sgs   1/1     Running   0          7m32s   172.30.13.2   192.168.10.243   <none>
+
+kubectl  get  pod --selector=app=kubia1  -owide
+NAME          READY   STATUS    RESTARTS   AGE    IP            NODE             NOMINATED NODE
+kubia-hjd9j   1/1     Running   0          118s   172.30.6.9    192.168.10.242   <none>
+kubia-nfm59   1/1     Running   0          118s   172.30.13.3   192.168.10.243   <none>
+
+
+老的还在app=kubia   但是是 孤立的 pod  删除不会被重建
+
+
+kubectl  get  pod --selector=app=kubia  -owide -w
+NAME          READY   STATUS    RESTARTS   AGE     IP            NODE             NOMINATED NODE
+kubia-j4v59   1/1     Running   0          64m     172.30.6.6    192.168.10.242   <none>
+kubia-z6sgs   1/1     Running   0          9m31s   172.30.13.2   192.168.10.243   <none>
+kubia-j4v59   1/1   Terminating   0     64m   172.30.6.6   192.168.10.242   <none>
+
+
+kubectl  delete  pod kubia-j4v59
+
+
+kubectlget  pod --selector=app=kubia  -owide
+NAME          READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+kubia-z6sgs   1/1     Running   0          10m   172.30.13.2   192.168.10.243   <none>
+
+
+
+
+
+
+
+ex 2 删除 rc  保留pod
+
+删除一个 ReplicaController
+通过如下命令可以删除一个rc，但是rc下面的pod也会随之被删除；
+
+kubectl delete rc kubia
+
+kubectl delete rc kubia --cascade=false
+
+
+生产环境经常会用到 kubectl  get rc kubia  -o yaml 输入出的有些内容是无法更改的 不能用patch 的 
+
+就使用这种 办法 
+
+1 备份
+kubectl  get rc kubia  -o yaml > kubia.yaml
+
+2 修改
+
+vim  kubia.yaml
+
+restartPolicy: Never
+
+
+3 删除rc  不删除 pod
+
+kubectl delete rc kubia --cascade=false
+
+4  查看pod
+
+
+kubectl  get pod --selector=app=kubia1 -owide
+NAME          READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+kubia-hjd9j   1/1     Running   0          13m   172.30.6.9    192.168.10.242   <none>
+kubia-nfm59   1/1     Running   0          13m   172.30.13.3   192.168.10.243   <none>
+
+
+
+5 重新创建rc
+
+kubectl  create  -f kubia.yaml
+The ReplicationController "kubia" is invalid: spec.template.spec.restartPolicy: Unsupported value: "Never": supported values: "Always"
+
+
+
+6 再次编辑
+
+vim  kubia.yaml
+restartPolicy: Never  删除
+
+优雅退出时间 
+terminationGracePeriodSeconds: 5
+
+7 create rc
+
+kubectl  create  -f kubia.yaml
+
+
+
+8
+原来 rc  的 pod  新rc  的pod  没有变   新的rc 和原来的pod 建立了关联关系
+
+kubectl  get pod --selector=app=kubia1 -owide
+NAME          READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+kubia-hjd9j   1/1     Running   0          13m   172.30.6.9    192.168.10.242   <none>
+kubia-nfm59   1/1     Running   0          13m   172.30.13.3   192.168.10.243   <none>
+[root@master01 ~]# kubectl  get pod --selector=app=kubia1 -owide
+NAME          READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+kubia-hjd9j   1/1     Running   0          16m   172.30.6.9    192.168.10.242   <none>
+kubia-nfm59   1/1     Running   0          16m   172.30.13.3   192.168.10.243   <none>
+
+
+9 删除一个pod
+
+kubectl  delete pod kubia-hjd9j
+
+kubectl  get pod --selector=app=kubia1 -owide
+NAME          READY   STATUS        RESTARTS   AGE   IP            NODE             NOMINATED NODE
+kubia-hjd9j   1/1     Terminating   0          18m   172.30.6.9    192.168.10.242   <none>
+kubia-nfm59   1/1     Running       0          18m   172.30.13.3   192.168.10.243   <none>
+kubia-tqcml   1/1     Running       0          17s   172.30.6.6    192.168.10.242   <none>
+
+查看新 rc 新建 的pod  的属性
+
+
+kubectl get pod kubia-tqcml  --output=jsonpath={..spec.terminationGracePeriodSeconds}
+5[root@master01 ~]# 
+
+
+查看原来pod  值
+
+kubectl get pod kubia-nfm59  --output=jsonpath={..spec.terminationGracePeriodSeconds}
+30[root@master01 ~]# 
+
+
+
+也就是说 对存量的容器没有影响 存量的容器发布更新的时候使用新的 模板配置 在用户平台不需要操作的情况下 在后端变更了 yaml
+偷偷的改了配置 对用户来说无法感知到  下次更新才使用新的配置 
+
+
+ubectl  get pod --selector=app=kubia1 -owide
+NAME          READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+kubia-nfm59   1/1     Running   0          30m   172.30.13.3   192.168.10.243   <none>
+kubia-tqcml   1/1     Running   0          11m   172.30.6.6    192.168.10.242   <none>
+
+
+
+
+
+
+
+
+
+kubectl delete rc kubia --cascade=true
+
+kubectl  get pod --selector=app=kubia1 -owide
+
+
+
+
+获取多个对象的 某个值得数据
+
+kubectl get pods --selector=app=kubia1 --output=jsonpath={..spec.terminationGracePeriodSeconds}
+30 5[root@master01 ~]# 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

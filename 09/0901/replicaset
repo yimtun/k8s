@@ -1,0 +1,238 @@
+ex1
+创建rc  创建爱你rs  用rs  替代 rc 接管rc 的pod
+
+1 创爱rc
+
+cat > rc-1.yaml  << EOF
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: kubia
+spec:
+  replicas: 2
+  selector:
+    app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia
+        image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+EOF
+
+kubectl    create  -f rc-1.yaml 
+
+
+kubectl  get pod
+NAME          READY   STATUS    RESTARTS   AGE
+kubia-57cz8   1/1     Running   0          4s
+kubia-nfbbv   1/1     Running   0          4s
+
+kubectl  get rc
+NAME    DESIRED   CURRENT   READY   AGE
+kubia   2         2         2       8s
+[root@master01 var]# 
+
+
+
+
+
+
+2 基于rc  的配置创建rs
+
+kubectl   get  rc kubia  -o yaml  > kubia.yaml
+
+vim kubia.yaml 
+
+apiVersion:  apps/v1beta2
+kind: ReplicaSet
+
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kubia
+
+
+kind ReplicaSet
+
+查看rs 的 api version
+
+kubectl  explain  rs
+
+kubectl  explain  rs.apiVersion
+KIND:     ReplicaSet
+VERSION:  extensions/v1beta1
+
+FIELD:    apiVersion <string>
+
+DESCRIPTION:
+     APIVersion defines the versioned schema of this representation of an
+     object. Servers should convert recognized schemas to the latest internal
+     value, and may reject unrecognized values. More info:
+     https://git.k8s.io/community/contributors/devel/api-conventions.md#resources
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kubia
+
+
+修改后如下  
+
+```
+cat kubia.yaml 
+apiVersion: extensions/v1beta1
+kind: ReplicaSet
+metadata:
+  creationTimestamp: 2019-06-11T11:21:03Z
+  generation: 1
+  labels:
+    app: kubia
+  name: kubia
+  namespace: default
+  resourceVersion: "5625603"
+  selfLink: /api/v1/namespaces/default/replicationcontrollers/kubia
+  uid: ff6a4fb5-8c3a-11e9-8483-5254003d139c
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kubia
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        name: kubia
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+status:
+  availableReplicas: 2
+  fullyLabeledReplicas: 2
+  observedGeneration: 1
+  readyReplicas: 2
+  replicas: 2
+```
+
+
+apiVersion 也可以使用 apiVersion: apps/v1beta2
+
+kubectl  create  -f kubia.yaml  --dry-run 
+replicaset.extensions/kubia created (dry run)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+把在RC中删除的RC，使用RS进行替换，看是否可以正常匹配pod：
+
+# kubia-rs.yaml
+apiVersion: apps/v1beta2
+kind: ReplicaSet
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia
+        image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+除了apiVersion和kind的不同, 最大的区别就是 selector ；RS 需要直接在 selector 中指定标签，而是通过 matchLabels 来指定它们；
+
+kubectl create -f kubia-rs.yaml
+kubectl describe rs kubia
+由于副本数和当前匹配的pod数相同，所以不会新建pod或者删除pod
+
+
+
+
+rs 接管  rc 只把rc 删除 不删除pod         rc 标签选择器 string pair
+
+
+
+yaml 里复数的  是 数组
+
+代码即注释
+
+function 动词
+变量 名词
+
+生产环境不常用  rc
+
+
+
+
+
+
+
+
+
+

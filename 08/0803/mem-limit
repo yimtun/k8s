@@ -1,0 +1,253 @@
+pod-resource
+
+```
+Memory limits 当容器内运行的进程尝试使用比限额更多的资源时会发生什么呢？
+CPU资源是可压缩资源，当进程不等待IO操作耗时所有的CPU时间是很常见的， 
+对一个进程的CPU使用率可以限制，因此当为一个容器设置CPU限制时， 该进程只会分不到比限额更多的CPU而已。
+
+而内存却有所不同，当进程尝试申请更多的内存资源时(突破限制)会被杀掉。或者说这个进程被OOMKilled了，
+OOM（Out Of Memory的缩写）。如果pod的重启策略是Always或者OnFailure，进程会立即重启，
+
+如果再次超限，K8S 会再次重启，但是会增加重启的间隔时间，
+这种情况会看到pod处于 CrashLoopBackOff状态, CrashLoopBackOff状态 说明kubelet还没有放弃，
+第一次重启的间隔为10s， 也就是kubelet会等待10s再重启它， 
+随着不断的OOM， 延迟也会增加，会按照20s，40s，80s ，160s以几何倍数增长，
+最终收敛到300s。一旦时间间隔达到300s，Kubelet 
+将以5分钟为间隔对容器进行无限制重启，直到容器正常运行或者被删除。
+
+
+遇到CrashLoopBackOff  多次的内存不够  情况  通知业务扩容
+业务是否有内存泄露  是否需要增加内存配置
+``
+
+
+ex1
+
+cat  > mem-limit.yaml  << EOF 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: limit-mem-pod
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.243
+  containers:
+  - name: main
+    image: progrium/stress
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: "100Mi"
+    command: ["stress","--vm","1" ,"--vm-bytes", "400M"]
+EOF
+
+
+limit 100Mi
+业务进程   400M
+
+stress","--vm","1" ,"--vm-bytes", "400M" 
+
+243  
+
+docker pull progrium/stress
+
+kubectl create -f  mem-limit.yaml  --dry-run
+
+kubectl  get pod  limit-mem-pod  -o wide
+NAME            READY   STATUS             RESTARTS   AGE   IP            NODE             NOMINATED NODE
+limit-mem-pod   0/1     CrashLoopBackOff   2          39s   172.30.86.8   192.168.10.243   <none>
+
+
+kubectl   describe  pod limit-mem-pod 
+
+kubectl   get  pod -o json limit-mem-pod   | jq .status
+
+
+```
+"containerStatuses": [
+    {
+      "containerID": "docker://dfe8604caa268020d1dd985bbfb11c084e7459ed13c9e64ad4e54ebde9bfd9dd",
+      "image": "progrium/stress:latest",
+      "imageID": "docker-pullable://progrium/stress@sha256:e34d56d60f5caae79333cee395aae93b74791d50e3841986420d23c2ee4697bf",
+      "lastState": {
+        "terminated": {
+          "containerID": "docker://dfe8604caa268020d1dd985bbfb11c084e7459ed13c9e64ad4e54ebde9bfd9dd",
+          "exitCode": 1,
+          "finishedAt": "2019-06-08T06:56:38Z",
+          "reason": "OOMKilled",
+          "startedAt": "2019-06-08T06:56:37Z"
+        }
+      },
+```
+
+还可以查看宿主  kubelet 日志    还和kubelet 日志级别有关  oom-killer
+
+stress invoked oom-killer  stres 引发以一个oom-killer
+
+
+
+
+
+
+```
+cat kubelet.ERROR 
+Log file created at: 2019/06/08 15:18:10
+Running on machine: node02
+Binary: Built with gc go1.10.4 for linux/amd64
+Log line format: [IWEF]mmdd hh:mm:ss.uuuuuu threadid file:line] msg
+E0608 15:18:10.816342   28355 kubelet.go:1287] Image garbage collection failed once. Stats initialization may not have completed yet: failed to get imageFs info: unable to find data in memory cache
+```
+
+
+
+
+
+grep  invoked oom-killer    /var/log/message
+
+
+```
+Jun  8 14:53:42 node02 kernel: [<ffffffff8c20efe6>] mem_cgroup_oom_synchronize+0x546/0x570
+Jun  8 14:53:42 node02 kernel: [<ffffffff8c20e460>] ? mem_cgroup_charge_common+0xc0/0xc0
+Jun  8 14:53:42 node02 kernel: [<ffffffff8c198194>] pagefault_out_of_memory+0x14/0x90
+Jun  8 14:53:42 node02 kernel: [<ffffffff8c70720c>] mm_fault_error+0x6a/0x157
+Jun  8 14:53:42 node02 kernel: [<ffffffff8c71a896>] __do_page_fault+0x496/0x4f0
+Jun  8 14:53:42 node02 kernel: [<ffffffff8c71a925>] do_page_fault+0x35/0x90
+Jun  8 14:53:42 node02 kernel: [<ffffffff8c716768>] page_fault+0x28/0x30
+Jun  8 14:53:42 node02 kernel: Task in /kubepods/pod1f6a1e22-89ba-11e9-abc6-000c295c6216/b02ae77f894ed8bac8b8fd3379b9ea3539220349e55ea77992246b84e2a7d1ca killed as a result of limit of /kubepods/pod1f6a1e22-89ba-11e9-abc6-000c295c6216
+Jun  8 14:53:42 node02 kernel: memory: usage 102400kB, limit 102400kB, failcnt 54
+Jun  8 14:53:42 node02 kernel: memory+swap: usage 102400kB, limit 9007199254740988kB, failcnt 0
+Jun  8 14:53:42 node02 kernel: kmem: usage 5024kB, limit 9007199254740988kB, failcnt 0
+Jun  8 14:53:42 node02 kernel: Memory cgroup stats for /kubepods/pod1f6a1e22-89ba-11e9-abc6-000c295c6216: cache:0KB rss:0KB rss_huge:0KB mapped_file:0KB swap:0KB inactive_anon:0KB active_anon:0KB inactive_file:0KB active_file:0KB unevictable:0KB
+```
+
+
+
+grep  "invoked oom-killer"    /var/log/messages
+
+
+
+删除k8s 日志目录
+
+grep  "invoked oom-killer"    /var/log/messages
+Jun  8 15:32:13 node02 kernel: stress invoked oom-killer: gfp_mask=0xd0, order=0, oom_score_adj=-998
+Jun  8 15:32:13 node02 kernel: stress invoked oom-killer: gfp_mask=0xd0, order=0, oom_score_adj=-998
+
+
+
+```
+Jun  8 15:32:13 node02 kernel: stress invoked oom-killer: gfp_mask=0xd0, order=0, oom_score_adj=-998
+Jun  8 15:32:13 node02 kernel: stress cpuset=5a6c6b77d52ce256adb53e06e68e6768c64c66bca9776209b5b241da619d121f mems_allowed=0
+Jun  8 15:32:13 node02 kernel: CPU: 3 PID: 2306 Comm: stress Kdump: loaded Tainted: G               ------------ T 3.10.0-862.el7.x86_64 #1
+Jun  8 15:32:13 node02 kernel: Hardware name: VMware, Inc. VMware Virtual Platform/440BX Desktop Reference Platform, BIOS 6.00 07/02/2015
+Jun  8 15:32:13 node02 kernel: Call Trace:
+Jun  8 15:32:13 node02 kernel: [<ffffffffad50d768>] dump_stack+0x19/0x1b
+Jun  8 15:32:13 node02 kernel: [<ffffffffad5090ea>] dump_header+0x90/0x229
+Jun  8 15:32:13 node02 kernel: [<ffffffffacf97456>] ? find_lock_task_mm+0x56/0xc0
+Jun  8 15:32:13 node02 kernel: [<ffffffffad00b1f8>] ? try_get_mem_cgroup_from_mm+0x28/0x60
+Jun  8 15:32:13 node02 kernel: [<ffffffffacf97904>] oom_kill_process+0x254/0x3d0
+Jun  8 15:32:13 node02 kernel: [<ffffffffad00efe6>] mem_cgroup_oom_synchronize+0x546/0x570
+Jun  8 15:32:13 node02 kernel: [<ffffffffad00e460>] ? mem_cgroup_charge_common+0xc0/0xc0
+Jun  8 15:32:13 node02 kernel: [<ffffffffacf98194>] pagefault_out_of_memory+0x14/0x90
+Jun  8 15:32:13 node02 kernel: [<ffffffffad50720c>] mm_fault_error+0x6a/0x157
+Jun  8 15:32:13 node02 kernel: [<ffffffffad51a896>] __do_page_fault+0x496/0x4f0
+Jun  8 15:32:13 node02 kernel: [<ffffffffad51a925>] do_page_fault+0x35/0x90
+Jun  8 15:32:13 node02 kernel: [<ffffffffad516768>] page_fault+0x28/0x30
+Jun  8 15:32:13 node02 kernel: Task in /kubepods/pod87b12bf1-89bf-11e9-abc6-000c295c6216/5a6c6b77d52ce256adb53e06e68e6768c64c66bca9776209b5b241da619d121f killed as a result of limit of /kubepods/pod87b12bf1-89bf-11e9-abc6-000c295c6216
+Jun  8 15:32:13 node02 kernel: memory: usage 102400kB, limit 102400kB, failcnt 575
+Jun  8 15:32:13 node02 kernel: memory+swap: usage 102400kB, limit 9007199254740988kB, failcnt 0
+Jun  8 15:32:13 node02 kernel: kmem: usage 4968kB, limit 9007199254740988kB, failcnt 0
+Jun  8 15:32:13 node02 kernel: Memory cgroup stats for /kubepods/pod87b12bf1-89bf-11e9-abc6-000c295c6216: cache:0KB rss:0KB rss_huge:0KB mapped_file:0KB swap:0KB inactive_anon:0KB active_anon:0KB inactive_file:0KB active_file:0KB unevictable:0KB
+Jun  8 15:32:13 node02 kernel: Memory cgroup stats for /kubepods/pod87b12bf1-89bf-11e9-abc6-000c295c6216/be563b6c773b4a057af2b1a2d92f2ebbd654e8f942091f749f9c4a2354f37f43: cache:0KB rss:0KB rss_huge:0KB mapped_file:0KB swap:0KB inactive_anon:0KB active_anon:0KB inactive_file:0KB active_file:0KB unevictable:0KB
+Jun  8 15:32:13 node02 kernel: Memory cgroup stats for /kubepods/pod87b12bf1-89bf-11e9-abc6-000c295c6216/5a6c6b77d52ce256adb53e06e68e6768c64c66bca9776209b5b241da619d121f: cache:12KB rss:97420KB rss_huge:92160KB mapped_file:4KB swap:0KB inactive_anon:0KB active_anon:97416KB inactive_file:0KB active_file:0KB unevictable:0KB
+```
+
+
+
+```
+与资源requests 不同的是，资源limits 不受节点可分配资源量的约束。所有limits的总和是允许超过节点资源总量的100%的，也就是说， 资源limits可以超卖。 
+```
+
+
+
+11:15 
+1 在我们生产环境里面 不允许 request swam ?
+2 当宿主机request 达到 85% 就不再调度
+
+3 还想调度 就放水 4核心   ->  6核心 
+
+CPU 是可压缩资源可以超卖
+内存是不可压缩资源 原则上是没法超卖的 也可以超卖  比例可以小一点
+
+
+
+
+
+
+上面的例子 一个容器  资源达到使用上限
+但是如果宿主上所有容器 都没达到使用上限  但是 他们总的使用资源 超过了 宿主的能力
+将物理内存分光了  分光了之后 总体内存不够了 又会触发 OOM  QOS 测录  先杀谁
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+`

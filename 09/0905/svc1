@@ -1,0 +1,221 @@
+外部访问 service
+
+nodeport
+
+
+
+
+ClusterIP：   使用一个集群固定IP，这个是默认选项。其中port是service中clusterip对应的端口；targetport是clusterIP作为负载均衡，后端目标容器实例的端口。
+
+NodePort：    在每个集群node节点开启一个nodeport端口，并将在该端口上接收到的流量重定向到基础服务。
+
+LoadBalancer：是Nodeport的一种扩展，使服务可以通过一个专用的负载均衡器来访问，这是由Kubernetes中正在运行的云基础设施提供的。
+              负载均衡器将流量重定向到跨所有节点的节点端口(nodeport),客户端通过负载均衡器的IP连接到服务。
+
+
+
+
+
+
+
+
+
+将  cluster ip 类型 改为  nodeport 类型
+
+
+全局端口号 范围
+
+ ps ajx | grep kube-apiserver
+      1    3127    3127    3127 ?             -1 Ssl   1000 1216:10 /opt/k8s/bin/kube-apiserver --enable-admission-plugins=Initializers,NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota --anonymous-auth=false --advertise-address=192.168.10.232 --bind-address=192.168.10.232 --insecure-port=0 --authorization-mode=Node,RBAC --runtime-config=api/all --enable-bootstrap-token-auth --service-cluster-ip-range=10.254.0.0/16 --service-node-port-range=30000-60000 --tls-cert-file=/etc/kubernetes/cert/kubernetes.pem --tls-private-key-file=/etc/kubernetes/cert/kubernetes-key.pem --client-ca-file=/etc/kubernetes/cert/ca.pem --kubelet-client-certificate=/etc/kubernetes/cert/kubernetes.pem --kubelet-client-key=/etc/kubernetes/cert/kubernetes-key.pem --service-account-key-file=/etc/kubernetes/cert/ca-key.pem --etcd-cafile=/etc/kubernetes/cert/ca.pem --etcd-certfile=/etc/kubernetes/cert/kubernetes.pem --etcd-keyfile=/etc/kubernetes/cert/kubernetes-key.pem --etcd-servers=https://192.168.10.232:2379 --enable-swagger-ui=true --allow-privileged=true --apiserver-count=3 --audit-log-maxage=30 --audit-log-maxbackup=3 --audit-log-maxsize=100 --audit-log-path=/var/log/kube-apiserver-audit.log --event-ttl=1h --alsologtostderr=true --logtostderr=false --log-dir=/var/log/kubernetes --v=2
+ 489942  490827  490826  489942 pts/2     490826 S+       0   0:00 grep --color=auto kube-apiserver
+
+
+
+--service-node-port-range=30000-60000
+
+
+
+
+修改 cluster  ip 为 nodeport
+
+
+kubectl  edit  svc kubia
+
+
+编辑前
+
+```
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"kubia","namespace":"default"},"spec":{"ports":[{"name":"http","port":80,"targetPort":8080},{"name":"https","port":443,"targetPort":8080}],"selector":{"app":"kubia"}}}
+  creationTimestamp: 2019-06-12T08:11:09Z
+  name: kubia
+  namespace: default
+  resourceVersion: "5723641"
+  selfLink: /api/v1/namespaces/default/services/kubia
+  uid: a29317f2-8ce9-11e9-8483-5254003d139c
+spec:
+  clusterIP: 10.254.141.43
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: kubia
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}
+
+```
+
+
+编辑后
+
+```
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"kubia","namespace":"default"},"spec":{"ports":[{"name":"http","port":80,"targetPort":8080},{"name":"https","port":443,"targetPort":8080}],"selector":{"app":"kubia"}}}
+  creationTimestamp: 2019-06-12T08:11:09Z
+  name: kubia
+  namespace: default
+  resourceVersion: "5723641"
+  selfLink: /api/v1/namespaces/default/services/kubia
+  uid: a29317f2-8ce9-11e9-8483-5254003d139c
+spec:
+  clusterIP: 10.254.141.43
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: kubia
+  sessionAffinity: None
+  type: NodePort
+status:
+  loadBalancer: {}
+```
+
+
+验证是否修改成功
+
+```
+kubectl  get svc kubia -oyaml
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"kubia","namespace":"default"},"spec":{"ports":[{"name":"http","port":80,"targetPort":8080},{"name":"https","port":443,"targetPort":8080}],"selector":{"app":"kubia"}}}
+  creationTimestamp: 2019-06-12T08:11:09Z
+  name: kubia
+  namespace: default
+  resourceVersion: "5748709"
+  selfLink: /api/v1/namespaces/default/services/kubia
+  uid: a29317f2-8ce9-11e9-8483-5254003d139c
+spec:
+  clusterIP: 10.254.141.43
+  externalTrafficPolicy: Cluster
+  ports:
+  - name: http
+    nodePort: 45874
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: kubia
+  sessionAffinity: None
+  type: NodePort
+status:
+  loadBalancer: {}
+```
+
+
+
+修改之后 clusterip 并没有变 
+kubectl  get svc kubia
+NAME    TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+kubia   NodePort   10.254.141.43   <none>        80:45874/TCP   5h21m
+
+
+通过clusterip 在集群内部依然可以访问
+
+ssh  root@node01 'curl 10.254.141.43'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0You've hit kubia-jgrnk
+100    23    0    23    0     0   1928      0 --:--:-- --:--:-- --:--:--  2300
+
+
+45874 就是全局端口号  不配置就会在 范围内随机选择
+也可以自己指定  
+
+如下示例
+
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 8080
+    nodePort: 30123
+
+
+
+
+ 
+
+
+[root@master01 ~]# curl  node01:45874
+You've hit kubia-jgrnk
+[root@master01 ~]# curl  node02:45874
+You've hit kubia-hc5l6
+[root@master01 ~]# 
+
+
+curl  192.168.10.242:45874
+You've hit kubia-4k298
+[root@master01 ~]# curl  192.168.10.243:45874
+You've hit kubia-jgrnk
+
+
+
+
+不一定访问  node 本地的  pod  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

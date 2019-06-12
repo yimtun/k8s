@@ -1,0 +1,524 @@
+ex1
+
+
+在一个ns 创建一个  LimitRange
+
+kubectl create namespace default-cpu-example
+
+
+cat << EOF > cpu-defaults.yaml
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: cpu-limit-range
+  namespace: default-cpu-example
+spec:
+  limits:
+  - default:
+      cpu: 1
+    defaultRequest:
+      cpu: 0.5
+    type: Container
+EOF
+
+
+kubectl  create  -f cpu-defaults.yaml
+
+kubectl  -n default-cpu-example   get  limitrange cpu-limit-range 
+NAME              CREATED AT
+cpu-limit-range   2019-06-10T05:11:53Z
+
+
+
+查看 limitrange 详细信息    limit cpu 1  request 500m
+
+kubectl  -n default-cpu-example   get  limitrange cpu-limit-range  -o yaml
+apiVersion: v1
+kind: LimitRange
+metadata:
+  creationTimestamp: 2019-06-10T05:11:53Z
+  name: cpu-limit-range
+  namespace: default-cpu-example
+  resourceVersion: "5483414"
+  selfLink: /api/v1/namespaces/default-cpu-example/limitranges/cpu-limit-range
+  uid: 428e1a9c-8b3e-11e9-8483-5254003d139c
+spec:
+  limits:
+  - default:
+      cpu: "1"
+    defaultRequest:
+      cpu: 500m
+    type: Container
+
+
+
+创建一个pod  验证 limitrange   这个pod  没有指定  limit  request 
+
+cat << EOF > cpu-defaults-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: default-cpu-demo
+  namespace: default-cpu-example
+spec:
+  containers:
+  - name: default-cpu-demo-ctr
+    image: nginx
+    imagePullPolicy: IfNotPresent
+EOF
+
+
+kubectl  create  -f cpu-defaults-pod.yaml
+
+kubectl  -n default-cpu-example  get  pod default-cpu-demo  -o wide
+NAME               READY   STATUS    RESTARTS   AGE     IP           NODE             NOMINATED NODE
+default-cpu-demo   1/1     Running   0          3m59s   172.30.6.5   192.168.10.242   <none>
+
+
+
+kubectl  describe  node 192.168.10.242
+Non-terminated Pods:         (4 in total)
+  Namespace                  Name                                     CPU Requests  CPU Limits  Memory Requests  Memory Limits
+  ---------                  ----                                     ------------  ----------  ---------------  -------------
+  default-cpu-example        default-cpu-demo                         500m (12%)    1 (25%)     0 (0%)           0 (0%)
+  default                    requests-pod                             200m (5%)     0 (0%)      10Mi (0%)        0 (0%)
+  kube-system                coredns-779ffd89bd-p9sr8                 100m (2%)     0 (0%)      70Mi (0%)        170Mi (2%)
+  kube-system                kubernetes-dashboard-659798bd99-ppfs7    50m (1%)      100m (2%)   100Mi (1%)       300Mi (3%)
+
+
+
+
+kubectl  -n default-cpu-example  get  pod default-cpu-demo  -o json | jq .spec.containers
+[
+  {
+    "image": "nginx",
+    "imagePullPolicy": "IfNotPresent",
+    "name": "default-cpu-demo-ctr",
+    "resources": {
+      "limits": {
+        "cpu": "1"
+      },
+      "requests": {
+        "cpu": "500m"
+      }
+    },
+    "terminationMessagePath": "/dev/termination-log",
+    "terminationMessagePolicy": "File",
+    "volumeMounts": [
+      {
+        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+        "name": "default-token-jlkhz",
+        "readOnly": true
+      }
+    ]
+  }
+]
+
+
+
+
+
+ex2 不指定request 指定limit    request 和指定的limit  相等
+
+cat << EOF >  cpu-defaults-pod-2.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: default-cpu-demo-2
+  namespace: default-cpu-example
+spec:
+  containers:
+  - name: default-cpu-demo-2-ctr
+    image: nginx
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: "2"
+EOF
+
+
+kubectl  create  -f cpu-defaults-pod-2.yaml 
+
+kubectl  -n default-cpu-example  get pod default-cpu-demo-2 -o wide
+NAME                 READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+default-cpu-demo-2   1/1     Running   0          54s   172.30.13.7   192.168.10.243   <none>
+
+
+kubectl  describe  node 192.168.10.243
+Non-terminated Pods:         (5 in total)
+  Namespace                  Name                                    CPU Requests  CPU Limits  Memory Requests  Memory Limits
+  ---------                  ----                                    ------------  ----------  ---------------  -------------
+  default-cpu-example        default-cpu-demo-2                      2 (50%)       2 (50%)     0 (0%)           0 (0%)
+  default                    limit-pod                               200m (5%)     200m (5%)   20Mi (0%)        20Mi (0%)
+  kube-system                heapster-77db4c4496-sstxz               0 (0%)        0 (0%)      0 (0%)           0 (0%)
+  kube-system                monitoring-grafana-5c5fbc85b-45dtk      0 (0%)        0 (0%)      0 (0%)           0 (0%)
+  kube-system                monitoring-influxdb-679d6dfb4d-xhbs5    0 (0%)        0 (0%)      0 (0%)           0 (0%)
+
+
+kubectl  -n default-cpu-example  get  pod default-cpu-demo-2  -o json | jq .spec.containers
+[
+  {
+    "image": "nginx",
+    "imagePullPolicy": "IfNotPresent",
+    "name": "default-cpu-demo-2-ctr",
+    "resources": {
+      "limits": {
+        "cpu": "2"
+      },
+      "requests": {
+        "cpu": "2"
+      }
+    },
+    "terminationMessagePath": "/dev/termination-log",
+    "terminationMessagePolicy": "File",
+    "volumeMounts": [
+      {
+        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+        "name": "default-token-jlkhz",
+        "readOnly": true
+      }
+    ]
+  }
+]
+
+
+
+ex3 再创建一个不指定 limit ,但是指定 requests 的pod    request 是自定义的 ，limit 是 limitrange 里定义的
+cat << EOF > cpu-defaults-pod-3.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: default-cpu-demo-3
+  namespace: default-cpu-example
+spec:
+  containers:
+  - name: default-cpu-demo-3-ctr
+    image: nginx
+    imagePullPolicy: IfNotPresent    
+    resources:
+      requests:
+        cpu: "0.75"
+EOF
+
+kubectl  create  -f cpu-defaults-pod-3.yaml
+
+
+kubectl  -n default-cpu-example  get pod default-cpu-demo-3 -o wide
+NAME                 READY   STATUS    RESTARTS   AGE   IP           NODE             NOMINATED NODE
+default-cpu-demo-3   1/1     Running   0          23s   172.30.6.6   192.168.10.242   <none>
+
+
+kubectl  describe  node 192.168.10.242
+Non-terminated Pods:         (5 in total)
+  Namespace                  Name                                     CPU Requests  CPU Limits  Memory Requests  Memory Limits
+  ---------                  ----                                     ------------  ----------  ---------------  -------------
+  default-cpu-example        default-cpu-demo-3                       750m (18%)    1 (25%)     0 (0%)           0 (0%)
+
+
+
+kubectl  -n default-cpu-example  get  pod default-cpu-demo-3  -o json | jq .spec.containers
+[
+  {
+    "image": "nginx",
+    "imagePullPolicy": "IfNotPresent",
+    "name": "default-cpu-demo-3-ctr",
+    "resources": {
+      "limits": {
+        "cpu": "1"
+      },
+      "requests": {
+        "cpu": "750m"
+      }
+    },
+    "terminationMessagePath": "/dev/termination-log",
+    "terminationMessagePolicy": "File",
+    "volumeMounts": [
+      {
+        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+        "name": "default-token-jlkhz",
+        "readOnly": true
+      }
+    ]
+  }
+]
+
+
+
+imagePullPolicy: IfNotPresent   生产环境always  业务一定记得 给image打tag
+
+容器故障 的时候也希望 拿新的 image
+
+
+kubectl  -n default-cpu-example   delete pod --all
+
+生产环境把 --all 给限制住了 把这个功能阉割掉
+
+
+
+
+给pod 设置最大和最小的CPU资源约束限制
+创建容器时约束验证过程：
+1. 如果容器没有指定 requests 和 limits, 将使用默认的资源进行分配
+2. 验证容器是否指定了大于或等于min.cpu 的CPU请求限制
+3. 验证容器是否指定了小于或等于max.cpu 的CPU请求限制
+
+
+创建一个最小和最大约束的 LimitRange
+
+kubectl create namespace constraints-cpu-example
+
+cat << EOF >  cpu-min-max-demo-lr.yaml
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: cpu-min-max-demo-lr
+spec:
+  limits:
+  - max:
+      cpu: "800m"
+    min:
+      cpu: "200m"
+    type: Container
+EOF
+
+
+
+kubectl apply -f  cpu-min-max-demo-lr.yaml --namespace=constraints-cpu-example
+kubectl get limitrange cpu-min-max-demo-lr --output=yaml --namespace=constraints-cpu-example
+
+kubectl get limitrange cpu-min-max-demo-lr --output=json --namespace=constraints-cpu-example   | jq .spec
+{
+  "limits": [
+    {
+      "default": {
+        "cpu": "800m"
+      },
+      "defaultRequest": {
+        "cpu": "800m"
+      },
+      "max": {
+        "cpu": "800m"
+      },
+      "min": {
+        "cpu": "200m"
+      },
+      "type": "Container"
+    }
+  ]
+}
+
+
+
+
+
+
+
+
+ex1 下面创建一个合法的pod验证一下限制约束是否生效
+cat <<EOF > cpu-constraints-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: constraints-cpu-demo
+  namespace: constraints-cpu-example
+spec:
+  containers:
+  - name: constraints-cpu-demo-ctr
+    image: nginx
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: "800m"
+      requests:
+        cpu: "500m"
+EOF
+
+kubectl  create  -f cpu-constraints-pod.yaml
+
+kubectl  -n  constraints-cpu-example  get pod  -o wide
+NAME                   READY   STATUS    RESTARTS   AGE   IP           NODE             NOMINATED NODE
+constraints-cpu-demo   1/1     Running   0          25s   172.30.6.5   192.168.10.242   <none>
+
+kubectl  describe  node 192.168.10.242 
+Non-terminated Pods:         (4 in total)
+  Namespace                  Name                                     CPU Requests  CPU Limits  Memory Requests  Memory Limits
+  ---------                  ----                                     ------------  ----------  ---------------  -------------
+  constraints-cpu-example    constraints-cpu-demo                     500m (12%)    800m (20%)  0 (0%)           0 (0%)
+  default                    requests-pod                             200m (5%)     0 (0%)      10Mi (0%)        0 (0%)
+  kube-system                coredns-779ffd89bd-p9sr8                 100m (2%)     0 (0%)      70Mi (0%)        170Mi (2%)
+  kube-system                kubernetes-dashboard-659798bd99-ppfs7    50m (1%)      100m (2%)   100Mi (1%)       300Mi (3%)
+
+
+
+kubectl  -n  constraints-cpu-example  get pod  constraints-cpu-demo  -o json | jq .spec.containers
+[
+  {
+    "image": "nginx",
+    "imagePullPolicy": "IfNotPresent",
+    "name": "constraints-cpu-demo-ctr",
+    "resources": {
+      "limits": {
+        "cpu": "800m"
+      },
+      "requests": {
+        "cpu": "500m"
+      }
+    },
+    "terminationMessagePath": "/dev/termination-log",
+    "terminationMessagePolicy": "File",
+    "volumeMounts": [
+      {
+        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+        "name": "default-token-pm4xk",
+        "readOnly": true
+      }
+    ]
+  }
+]
+
+
+
+
+
+
+
+
+下面再创建一个超出最大约束条件的pod验证一下限制约束是否生效
+cat << EOF > cpu-constraints-pod-2.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: constraints-cpu-demo-2
+spec:
+  containers:
+  - name: constraints-cpu-demo-2-ctr
+    image: nginx
+    imagePullPolicy: IfNotPresent    
+    resources:
+      limits:
+        cpu: "1.5"
+      requests:
+        cpu: "500m"
+EOF
+
+
+kubectl apply -f cpu-constraints-pod-2.yaml --namespace=constraints-cpu-example
+
+Error from server (Forbidden): error when creating "cpu-constraints-pod-2.yaml": pods "constraints-cpu-demo-2" is forbidden: maximum cpu usage per Container is 800m, but limit is 1500m.
+
+
+
+下面再创建一个没有满足最小约束条件的pod验证一下限制约束是否生效？
+cat << EOF  > cpu-constraints-pod-3.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: constraints-cpu-demo-3
+spec:
+  containers:
+  - name: constraints-cpu-demo-3-ctr
+    image: nginx
+    imagePullPolicy: IfNotPresent    
+    resources:
+      limits:
+        cpu: "800m"
+      requests:
+        cpu: "100m"
+EOF
+
+kubectl apply -f cpu-constraints-pod-3.yaml --namespace=constraints-cpu-example
+Error from server (Forbidden): error when creating "cpu-constraints-pod-3.yaml": pods "constraints-cpu-demo-3" is forbidden: minimum cpu usage per Container is 200m, but request is 100m.
+
+
+
+
+
+
+
+下面创建一个没有指定CPU requests 和 limits的pod     limits requests 都是800m
+cat << EOF > cpu-constraints-pod-4.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: constraints-cpu-demo-4
+spec:
+  containers:
+  - name: constraints-cpu-demo-4-ctr
+    image: nginx
+    imagePullPolicy: IfNotPresent
+EOF
+
+kubectl apply -f cpu-constraints-pod-4.yaml --namespace=constraints-cpu-example
+pod/constraints-cpu-demo-4 created
+
+kubectl get pod constraints-cpu-demo-4 --namespace=constraints-cpu-example  -o json | jq .spec.containers
+[
+  {
+    "image": "nginx",
+    "imagePullPolicy": "IfNotPresent",
+    "name": "constraints-cpu-demo-4-ctr",
+    "resources": {
+      "limits": {
+        "cpu": "800m"
+      },
+      "requests": {
+        "cpu": "800m"
+      }
+    },
+    "terminationMessagePath": "/dev/termination-log",
+    "terminationMessagePolicy": "File",
+    "volumeMounts": [
+      {
+        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+        "name": "default-token-pm4xk",
+        "readOnly": true
+      }
+    ]
+  }
+]
+
+
+
+
+在外层平台 限制 不允许使用 k8s api   使用封装的平台的api
+
+
+
+清理环境
+
+kubectl delete namespace constraints-cpu-example
+
+
+
+
+写yaml 文件 能够创建pod  的yaml  核心字段 
+apiversion
+kind
+metadata:
+   name
+   lables
+   antions
+   namespace
+spec:
+  containers:
+  - name: default-cpu-demo-ctl
+  image: nginx
+  commamd sleep
+
+yaml 里数组是横线  表示数组
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

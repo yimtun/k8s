@@ -1,0 +1,162 @@
+服务资源的介绍与创建
+发现集群中的服务
+将服务暴露给外部
+从集群内部链接外部服务    早期经常用
+控制pod是否与服务关联
+
+
+数据库授权是否不安全
+
+ex1 创建service   默认类型是 cluster ip
+
+cat > svc.yaml << EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: kubia
+EOF
+
+kubectl create -f svc.yaml
+
+
+默认类型是 cluster ip
+kubectl  get service kubia
+NAME    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+kubia   ClusterIP   10.254.180.200   <none>        80/TCP    24s
+
+
+master 上不能ping 通 是因为master没有装kube-proxy  
+
+在node01上ping 这个虚拟ip
+
+ssh root@node01  'ping 10.254.180.200'
+PING 10.254.180.200 (10.254.180.200) 56(84) bytes of data.
+64 bytes from 10.254.180.200: icmp_seq=1 ttl=64 time=0.079 ms
+64 bytes from 10.254.180.200: icmp_seq=2 ttl=64 time=0.102 ms
+64 bytes from 10.254.180.200: icmp_seq=3 ttl=64 time=0.081 ms
+
+
+
+在 pod  里测试
+
+kubectl exec test-pod -- ping 10.254.180.200
+
+查看80 服务端口
+
+ssh root@node01  'telnet 10.254.180.200 80 '
+Trying 10.254.180.200...
+telnet: connect to address 10.254.180.200: Connection refused
+
+
+没有pod 
+
+kubectl run  tool   --image=centos  --restart=Never  --image-pull-policy=IfNotPresent --command sleep 3000
+
+
+kubectl exec tool -- curl 10.254.180.200:80
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0curl: (7) Failed connect to 10.254.180.200:80; Connection refused
+command terminated with exit code 7
+
+
+
+
+通过rs 创建pod  并且要服务  service 的选择器
+
+cat > rs.yaml << EOF
+apiVersion: apps/v1beta2
+kind: ReplicaSet
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia
+        image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+EOF
+
+kubectl create -f rs.yaml
+
+
+kubectl  get rs  kubia --show-labels 
+NAME    DESIRED   CURRENT   READY   AGE   LABELS
+kubia   3         3         3       48s   <none>
+
+
+
+[root@master01 ~]# kubectl exec tool -- curl 10.254.180.200:80
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0You've hit kubia-fccqg
+100    23    0    23    0     0   2188      0 --:--:-- --:--:-- --:--:--  2555
+[root@master01 ~]# kubectl exec tool -- curl 10.254.180.200:80
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0You've hit kubia-7hckg
+100    23    0    23    0     0   2982      0 --:--:-- --:--:-- --:--:--  3833
+[root@master01 ~]# kubectl exec tool -- curl 10.254.180.200:80
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100    23    0    23    0     0   1354      0 --:--:-- --:--:-- --:--:--  1437You've hit kubia-cnftp
+
+
+
+分别访问了 三个不同的pod
+
+集群内部 node  和所有pod 访问 cluster ip 类型的 service
+
+
+测试镜像  golang 测试 service
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

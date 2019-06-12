@@ -1,0 +1,320 @@
+ip  透传
+
+实践
+
+
+external-ip none  / nodes
+
+
+kubectl  get svc kubia
+NAME    TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+kubia   NodePort   10.254.141.43   <none>        80:45874/TCP   5h28m
+[root@master01 ~]# kubectl  delete svc kubia
+service "kubia" deleted
+
+
+
+
+
+创建node-port
+
+cat > kubia-svc-nodeport.yaml  << EOF
+apiVersion: v1
+kind: Service
+metadata:
+   name: kubia-nodeport
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 8080
+    nodePort: 30123
+  selector:
+    app: kubia
+EOF
+
+
+kubectl create -f kubia-svc-nodeport.yaml
+
+
+kubectl  get svc   kubia-nodeport 
+NAME             TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE
+kubia-nodeport   NodePort   10.254.50.65   <none>        80:30123/TCP   19s
+
+
+
+
+
+ex2  loadbalancer
+
+cat > lb.yaml  << EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia-loadbalancer
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: kubia
+EOF
+
+kubectl create -f lb.yaml
+
+kubectl  get svc   kubia-loadbalancer 
+NAME                 TYPE           CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+kubia-loadbalancer   LoadBalancer   10.254.191.156   <pending>     80:44429/TCP   6s
+
+
+curl 192.168.10.242:44429
+You've hit kubia-hc5l6
+[root@master01 ~]# curl 192.168.10.243:44429
+You've hit kubia-hc5l6
+
+ssh root@node01 'curl 10.254.191.156'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0You've hit kubia-jgrnk
+100    23    0    23    0     0   5186      0 --:--:-- --:--:-- --:--:--  7666
+
+
+
+
+ex3   nodeport 网络连接跳数
+
+kubectl  edit svc kubia-nodeport 
+
+编辑前
+
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: 2019-06-12T14:01:46Z
+  name: kubia-nodeport
+  namespace: default
+  resourceVersion: "5751065"
+  selfLink: /api/v1/namespaces/default/services/kubia-nodeport
+  uid: 9dc1fdf6-8d1a-11e9-8483-5254003d139c
+spec:
+  clusterIP: 10.254.50.65
+  externalTrafficPolicy: Cluster
+  ports:
+  - nodePort: 30123
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: kubia
+  sessionAffinity: None
+  type: NodePort
+status:
+  loadBalancer: {}
+
+
+编辑后
+
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: 2019-06-12T14:01:46Z
+  name: kubia-nodeport
+  namespace: default
+  resourceVersion: "5751065"
+  selfLink: /api/v1/namespaces/default/services/kubia-nodeport
+  uid: 9dc1fdf6-8d1a-11e9-8483-5254003d139c
+spec:
+  clusterIP: 10.254.50.65
+  externalTrafficPolicy: Cluster
+  ports:
+  - nodePort: 30123
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: kubia
+  sessionAffinity: None
+  externalTrafficPolicy: Local
+  type: NodePort
+status:
+  loadBalancer: {}
+
+
+kubectl  get svc kubia-nodeport 
+NAME             TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE
+kubia-nodeport   NodePort   10.254.50.65   <none>        80:30123/TCP   9m15s
+
+
+kubectl  get  pod   -owide
+NAME          READY   STATUS      RESTARTS   AGE     IP            NODE             NOMINATED NODE
+alpine        1/1     Running     9          8h      172.30.13.2   192.168.10.243   <none>
+kubia-4k298   1/1     Running     0          6h47m   172.30.13.6   192.168.10.243   <none>
+kubia-hc5l6   1/1     Running     0          6h47m   172.30.13.3   192.168.10.243   <none>
+kubia-jgrnk   1/1     Running     0          6h47m   172.30.6.9    192.168.10.242   <none>
+tool          0/1     Completed   0          8h      172.30.13.3   192.168.10.243   <none>
+
+
+243 2
+242 1
+
+curl 192.168.10.242:30123
+
+
+curl 192.168.10.242:30123
+You've hit kubia-jgrnk
+[root@master01 ~]# curl 192.168.10.242:30123
+You've hit kubia-jgrnk
+[root@master01 ~]# curl 192.168.10.242:30123
+You've hit kubia-jgrnk
+[root@master01 ~]# curl 192.168.10.242:30123
+You've hit kubia-jgrnk
+
+
+始终访问 242 本地的 pod
+
+将242 设置为不可调度   然后删除 242 的pod
+
+kubectl cordon 192.168.10.242
+
+kubectl get node
+
+kubectl  get node 192.168.10.242
+NAME             STATUS                     ROLES    AGE   VERSION
+192.168.10.242   Ready,SchedulingDisabled   <none>   54d   v1.12.0-rc.2
+
+
+
+kubectl delete pod kubia-jgrnk  --grace-period=0 --wait=false
+
+
+243 上会创建一个新的
+
+kubectl  get pod -o wide
+NAME          READY   STATUS      RESTARTS   AGE     IP            NODE             NOMINATED NODE
+alpine        1/1     Running     9          8h      172.30.13.2   192.168.10.243   <none>
+kubia-4k298   1/1     Running     0          6h53m   172.30.13.6   192.168.10.243   <none>
+kubia-4lfz6   1/1     Running     0          51s     172.30.13.5   192.168.10.243   <none>
+kubia-hc5l6   1/1     Running     0          6h53m   172.30.13.3   192.168.10.243   <none>
+tool          0/1     Completed   0          8h      172.30.13.3   192.168.10.243   <none>
+
+
+
+curl 192.168.10.242:30123
+
+curl 192.168.10.242:30123
+curl: (7) Failed connect to 192.168.10.242:30123; Connection refused
+
+本地没有pod 就无法接入流量了  会丢流量   externalTrafficPolicy: Local  参数要求 node 本地有pod 很难保证
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+curl 192.168.10.243:30123
+
+curl 192.168.10.243:30123
+You've hit kubia-hc5l6
+[root@master01 ~]# curl 192.168.10.243:30123
+You've hit kubia-4k298
+[root@master01 ~]# curl 192.168.10.243:30123
+You've hit kubia-hc5l6
+[root@master01 ~]# curl 192.168.10.243:30123
+You've hit kubia-4k298
+
+
+仅仅在  242 本地的pod 之间进行负载均衡
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

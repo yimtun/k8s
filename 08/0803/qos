@@ -1,0 +1,98 @@
+pod-qos
+
+
+
+kubectl  describe  node  192.168.10.243
+
+```
+Conditions:
+  Type             Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
+  ----             ------  -----------------                 ------------------                ------                       -------
+OutOfDisk        False   Sat, 08 Jun 2019 15:49:28 +0800   Sat, 08 Jun 2019 15:30:16 +0800   KubeletHasSufficientDisk     kubelet has sufficient disk space available
+MemoryPressure   False   Sat, 08 Jun 2019 15:49:28 +0800   Sat, 08 Jun 2019 15:30:16 +0800   KubeletHasSufficientMemory   kubelet has sufficient memory available
+DiskPressure     False   Sat, 08 Jun 2019 15:49:28 +0800   Sat, 08 Jun 2019 15:30:16 +0800   KubeletHasNoDiskPressure     kubelet has no disk pressure
+PIDPressure      False   Sat, 08 Jun 2019 15:49:28 +0800   Sun, 31 Mar 2019 12:36:35 +0800   KubeletHasSufficientPID      kubelet has sufficient PID available
+Ready            True    Sat, 08 Jun 2019 15:49:28 +0800   Sat, 08 Jun 2019 15:30:26 +0800   KubeletReady                 kubelet is posting ready status
+```
+
+
+
+如果所有上面的status 都是false   也就代表没有什么压力  就是可调度的  raady 
+
+kubeleRead
+
+DiskPressure  也包括inode
+
+
+
+QOS
+当kubernetes集群中某个节点上可用资源比较小时，
+kubernetes提供了资源回收策略来保证节点上POD正常运行。因为如果节点上的内存或者CPU资源耗尽时，这个节点上运行的POD就会变成不稳定。
+
+
+docker 容器 共享内核的 有很多资源隔离包括CPU的隔离 还有内存资源的隔离 (内存还好  是不可要资源 ）
+cpu 是可压缩资源 CPU 分为 user 级别 和 sys 级别的 限制都是user 级别的  基于CPU share 的 
+但是如果一个业务服务的进程 占用了大量的sys cpu 这个时候 资源限制也无能为力 因为是  kernel 级别隔离
+这种限制只能用statefulset 强行绑定  否则 cpu share 的话都会互相干扰 
+
+问题 给一个容器设置了cpu limits 宿主机cpu 有压力了  真正的不受影响吗
+或者其中有一个容器用php 还有一些用java的  这时候cpu 有压力了 都是多线程的 
+他们会影响其他容器的稳定性 会有很大的cpu  抖动 延迟增加 
+
+内核组 可以做cpu 的动态调整
+
+
+提高资源利用率的前提是服务质量不受影响
+
+
+
+
+
+实际生产 大多数是  哪个级别 ?  BestEffort
+
+
+内存超卖  1.1 1.3 1.5
+
+
+
+超卖是配置pod  ？
+
+给node 放水是配置  node
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

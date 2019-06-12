@@ -1,0 +1,226 @@
+ReplicationController   rc
+
+
+一个ReplicaController有三个主要组成部分
+
+label selector (标签选择器), 用于确定 ReplicaController 作用域中有哪些 pod，也可以理解成pod选择器
+replica count (副本数)， 用于指定应该运行的 pod 数量
+pod template (pod 模板)，用于描述创建新的 pod 副本   相当于  pod 的yaml  是对老的 bare pod  的一个封装
+
+
+
+
+ex1 
+
+创建一个 副本数为 3 个pod的 ReplicationController，名称是为 nginx。
+k8s in acition 中的例子
+
+
+cat > kubia-rc.yaml   << EOF
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  selector:
+    app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia
+        image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+EOF
+
+
+
+kubectl create -f kubia-rc.yaml
+
+kubectl get pods --selector=app=kubia
+
+kubectl get pods --selector=app=kubia -o wide
+NAME          READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+kubia-7s29d   1/1     Running   0          39s   172.30.6.5    192.168.10.242   <none>
+kubia-lgwc4   1/1     Running   0          39s   172.30.13.9   192.168.10.243   <none>
+kubia-ptnps   1/1     Running   0          39s   172.30.13.8   192.168.10.243   <none>
+
+
+kubectl get rc kubia  -o wide
+NAME    DESIRED   CURRENT   READY   AGE   CONTAINERS   IMAGES        SELECTOR
+kubia   3         3         3       82s   kubia        luksa/kubia   app=kubia
+
+
+kubectl get rc kubia  -o yaml
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  creationTimestamp: 2019-06-11T06:05:44Z
+  generation: 1
+  labels:
+    app: kubia
+  name: kubia
+  namespace: default
+  resourceVersion: "5600591"
+  selfLink: /api/v1/namespaces/default/replicationcontrollers/kubia
+  uid: f3245dd9-8c0e-11e9-8483-5254003d139c
+spec:
+  replicas: 3
+  selector:
+    app: kubia
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        name: kubia
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+status:
+  availableReplicas: 3
+  fullyLabeledReplicas: 3
+  observedGeneration: 1
+  readyReplicas: 3
+  replicas: 3
+
+
+
+status:
+  availableReplicas: 3
+  fullyLabeledReplicas: 3
+  observedGeneration: 1
+  readyReplicas: 3
+  replicas: 3
+
+
+
+
+kubectl get pods kubia-7s29d -owide -oyaml
+
+kubectl delete  pod kubia-lgwc4 
+pod "kubia-lgwc4" deleted
+
+kubectl get pods  --selector=app=kubia  -w
+NAME          READY   STATUS    RESTARTS   AGE
+kubia-j4v59   1/1     Running   0          59s
+kubia-lgwc4   1/1     Running   0          14m
+kubia-ptnps   1/1     Running   0          14m
+kubia-lgwc4   1/1   Terminating   0     14m
+kubia-wh7cq   0/1   Pending   0     0s
+kubia-wh7cq   0/1   Pending   0     0s
+kubia-wh7cq   0/1   ContainerCreating   0     0s
+kubia-wh7cq   1/1   Running   0     2s
+kubia-lgwc4   0/1   Terminating   0     15m
+kubia-lgwc4   0/1   Terminating   0     15m
+kubia-lgwc4   0/1   Terminating   0     15m
+
+
+
+kubectl get pods  --selector=app=kubia  -owide -w
+NAME          READY   STATUS    RESTARTS   AGE     IP             NODE             NOMINATED NODE
+kubia-j4v59   1/1     Running   0          3m11s   172.30.6.6     192.168.10.242   <none>
+kubia-ptnps   1/1     Running   0          16m     172.30.13.8    192.168.10.243   <none>
+kubia-wh7cq   1/1     Running   0          100s    172.30.13.10   192.168.10.243   <none>
+
+
+kubectl get pods  --selector=app=kubia  -owide -w  |grep  对于 etcd api 压力太大
+
+
+
+
+仅仅获取pod 的name 
+
+kubectl get pod -owide | grep kubia| awk -F " " {'print $1'}
+kubia-j4v59
+kubia-ptnps
+kubia-wh7cq
+
+
+kubectl get pods --selector=app=kubia --output=jsonpath={.items..metadata.name}
+kubia-j4v59 kubia-ptnps kubia-wh7cq[root@master01 ~]# 
+
+
+
+
+over
+
+
+kubectl describe replicationcontrollers/kubia
+pods=$(kubectl get pods --selector=app=kubia --output=jsonpath={.items..metadata.name})
+
+自定义输出格式
+
+echo $pods
+
+删除 pod
+kubectl delete pod xxx
+kubectl get pods --selector=app=kubia
+
+
+
+
+
+
+
+将pod移入或移出 ReplicaController
+如果你手动修改了一个pod的标签， 使它不再匹配 ReplicaController 了，那么该pod 就变得和其它手动创建的pod一样了，不再被任何 Controller 管理。而原 ReplicaController 发现少了个 pod，并启动一个新的pod替换它。 给ReplicaController管理的pod添加标签
+
+$ kubectl label pod kubia-xxx type=debug
+$ kubectl get pod --show-labels
+
+
+
+
+
+由于通过ReplicaController 创建的pod 并 不属于ReplicaController的组成部分，只不过是由其进行管理，因此可以只删除rc，而不删除pod。
+
+kubectl delete rc kubia --cascade=false
+
+
+
+
+RC 的不足之处
+单个RC无法将pod与标签 env=devel,env=prod 同时匹配，只能匹配 env=devel的pod，或者 env=prod的pod。  一个rc  无法与多个标签同时匹配 rc 两个标签  pod 一个标签不行
+RC无法根据pod标签名进行进行匹配pod   标签也是一个map key value 只定义可以 不写value rc 做不到  
+
+这些高级的匹配需要使用rs
+
+
+rc 的存在为了 老旧pod 不便使用 rs 的pod
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

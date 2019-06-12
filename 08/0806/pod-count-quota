@@ -1,0 +1,88 @@
+限制可创建对象的个数
+
+kubectl create namespace quota-pod-example
+
+
+cat << EOF >  quota-pod.yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: pod-demo
+spec:
+  hard:
+    pods: "2"
+EOF
+
+kubectl create -f quota-pod.yaml --namespace=quota-pod-example
+
+kubectl get resourcequota pod-demo --namespace=quota-pod-example --output=yaml
+
+kubectl get resourcequota pod-demo --namespace=quota-pod-example -o json | jq .status
+{
+  "hard": {
+    "pods": "2"
+  },
+  "used": {
+    "pods": "0"
+  }
+}
+
+
+
+下面创建一个 Deployment对象，副本数为3,用来触发podCount限制：
+
+
+cat  <<EOF >  quota-pod-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pod-quota-demo
+spec:
+  selector:
+    matchLabels:
+      purpose: quota-demo
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        purpose: quota-demo
+    spec:
+      containers:
+      - name: pod-quota-demo
+        image: nginx
+        imagePullPolicy: IfNotPresent
+EOF
+
+
+kubectl get pod -n quota-pod-example -w 
+
+kubectl apply -f quota-pod-deployment.yaml --namespace=quota-pod-example
+
+kubectl get pod -n quota-pod-example -w
+NAME                             READY   STATUS    RESTARTS   AGE
+pod-quota-demo-ff4dfc88c-q6z8c   0/1     Pending   0          0s
+pod-quota-demo-ff4dfc88c-q6z8c   0/1   Pending   0     0s
+pod-quota-demo-ff4dfc88c-w2dkz   0/1   Pending   0     0s
+pod-quota-demo-ff4dfc88c-w2dkz   0/1   Pending   0     0s
+pod-quota-demo-ff4dfc88c-q6z8c   0/1   ContainerCreating   0     0s
+pod-quota-demo-ff4dfc88c-w2dkz   0/1   ContainerCreating   0     0s
+pod-quota-demo-ff4dfc88c-w2dkz   1/1   Running   0     2s
+pod-quota-demo-ff4dfc88c-q6z8c   1/1   Running   0     2s
+
+
+
+kubectl describe -f quota-pod-deployment.yaml
+
+
+清理环境
+
+kubectl delete namespace quota-pod-example
+
+
+
+
+
+
+可以限制某一个状态的pod 数量
+
+

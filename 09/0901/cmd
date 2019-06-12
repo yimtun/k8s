@@ -1,0 +1,13 @@
+kubectl  get secret ceph-admin-secret   --output="jsonpath={.data.key}" | base64 -d
+AQBz29dc6Df7DxAAhT6bz6LcVDes61LsKbpmnA==[root@master01 ~]# 
+
+
+kubectl  get secret ceph-admin-secret   --output="jsonpath={.data.key}" | base64 -d -w 0
+输出不换行
+
+
+
+usefule
+
+
+https://www.bookstack.cn/read/kubernetes-handbook/guide-kubectl-cheatsheet.md

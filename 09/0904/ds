@@ -1,0 +1,159 @@
+ex1 如果node设置为unschedule状态，daemonset的行为是什么
+
+清理环境
+
+kubectl  label nodes 192.168.10.243 k8s.51reboot.com/disk- 
+
+kubectl  delete ds ssd-monitor 
+
+
+
+
+
+243 设置为不可调度
+
+kubectl cordon 192.168.10.243
+
+kubectl  get node 192.168.10.243  --show-labels 
+NAME             STATUS                     ROLES    AGE   VERSION        LABELS
+192.168.10.243   Ready,SchedulingDisabled   <none>   53d   v1.12.0-rc.2   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/hostname=192.168.10.243
+
+
+
+
+
+
+cat > ds-1.yaml  << EOF
+apiVersion: apps/v1beta2
+kind: DaemonSet
+metadata:
+  name: ssd-monitor
+spec:
+  selector:
+    matchLabels:
+      app: ssd-monitor
+  template:
+    metadata:
+      labels:
+        app: ssd-monitor
+    spec:
+      nodeSelector:
+        k8s.51reboot.com/disk: ssd
+      containers:
+      - name: main
+        image: luksa/ssd-monitor
+        imagePullPolicy: IfNotPresent
+EOF
+
+kubectl apply -f ds-1.yaml
+
+
+kubectl  get ds && kubectl  label nodes 192.168.10.243 k8s.51reboot.com/disk=ssd  && kubectl  get ds -w
+
+
+kubectl  get ds && kubectl  label nodes 192.168.10.243 k8s.51reboot.com/disk=ssd  && kubectl  get ds -w
+NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR               AGE
+ssd-monitor   0         0         0       0            0           k8s.51reboot.com/disk=ssd   44s
+node/192.168.10.243 labeled
+NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR               AGE
+ssd-monitor   1         1         0       1            0           k8s.51reboot.com/disk=ssd   44s
+ssd-monitor   1     1     1     1     1     k8s.51reboot.com/disk=ssd   46s
+
+
+虽然 node 243 被设置为不可调度   ds  创建的pod  还是会被调度器 调度到 243
+
+kubectl  get node 192.168.10.243 
+NAME             STATUS                     ROLES    AGE   VERSION
+192.168.10.243   Ready,SchedulingDisabled   <none>   53d   v1.12.0-rc.2
+
+
+
+这个pod 可以容忍 node 的污点
+Taints :  NoSchedule   容忍污点   node   describe
+
+
+
+ex2  把kube-scheduler 调度器停掉呢？ds 的行为
+
+停掉 scheduler
+systemctl  stop kube-scheduler.service 
+
+kubectl  get pod
+NAME                READY   STATUS    RESTARTS   AGE
+ssd-monitor-fvhvs   1/1     Running   0          4m14s
+
+
+kubectl delete pod ssd-monitor-fvhvs
+
+kubectl  get  pod -owide
+NAME                READY   STATUS    RESTARTS   AGE   IP       NODE     NOMINATED NODE
+ssd-monitor-bbtfq   0/1     Pending   0          12s   <none>   <none>   <none>
+
+pending 状态 
+
+开启scheduler
+
+systemctl  start  kube-scheduler.service  && kubectl  get  pod -owide -w
+
+
+systemctl  start  kube-scheduler.service  && kubectl  get  pod -owide -w
+NAME                READY   STATUS    RESTARTS   AGE   IP       NODE     NOMINATED NODE
+ssd-monitor-bbtfq   0/1     Pending   0          54s   <none>   <none>   <none>
+ssd-monitor-bbtfq   0/1   Pending   0     71s   <none>   192.168.10.243   <none>
+ssd-monitor-bbtfq   0/1   ContainerCreating   0     71s   <none>   192.168.10.243   <none>
+ssd-monitor-bbtfq   1/1   Running   0     73s   172.30.13.2   192.168.10.243   <none>
+
+
+
+
+
+查看node  的 taints 玷污
+
+
+kubectl  get  node 192.168.10.243  --output=jsonpath={.spec.taints}
+
+kubectl  describe  node 192.168.10.243
+
+kubectl  describe  node 192.168.10.243  | grep Taints
+Taints:             node.kubernetes.io/unschedulable:NoSchedule
+
+
+查看pod  的   Tolerations   容忍  许可    存在  unschedulable:NoSchedule  所以 243 不可调度还可以 有poed 
+
+kubectl  describe  pod ssd-monitor-bbtfq 
+Tolerations:     node.kubernetes.io/disk-pressure:NoSchedule
+                 node.kubernetes.io/memory-pressure:NoSchedule
+                 node.kubernetes.io/not-ready:NoExecute
+                 node.kubernetes.io/unreachable:NoExecute
+                 node.kubernetes.io/unschedulable:NoSchedule
+
+
+
+
+
+
+
+恢复初始环境
+
+kubectl  label nodes 192.168.10.243 k8s.51reboot.com/disk-
+kubectl  delete ds ssd-monitor
+将243 置为Ready 状态
+kubectl uncordon 192.168.10.243
+
+mesos 二级调度 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,764 @@
+cluster ip 是默认的 svc 类型
+
+
+ex1 设置 会话的亲和性
+
+直接编辑 svc
+
+kubectl  edit  svc kubia
+
+
+spec:
+  clusterIP: 10.254.180.200
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: kubia
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}
+
+
+
+
+spec:
+  clusterIP: 10.254.180.200
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: kubia
+  sessionAffinity: ClientIP
+  type: ClusterIP
+status:
+  loadBalancer: {}
+
+
+
+
+
+验证更改
+
+echo $(kubectl  get svc kubia --output=jsonpath={.spec.sessionAffinity})
+ClientIP
+
+
+每次客户端都是访问 同一个pod 如下
+
+```
+[root@master01 ~]# ssh root@node01 'curl 10.254.180.200'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0You've hit kubia-fccqg
+100    23    0    23    0     0   3124      0 --:--:-- --:--:-- --:--:--  3833
+[root@master01 ~]# ssh root@node01 'curl 10.254.180.200'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100    23    0    23    0     0   8805      0 --:--:-- --:--:-- --:--:-- 1150You've hit kubia-fccqg
+0
+[root@master01 ~]# ssh root@node01 'curl 10.254.180.200'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100    23    0    23    0     0   8490      0 --:--:-- --:--:-- --:--:-- 1150You've hit kubia-fccqg
+0
+[root@master01 ~]# ssh root@node01 'curl 10.254.180.200'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100    23    0    23    0     0   6440      0 --:--:-- --:--:-- --:--:-- 115You've hit kubia-fccqg
+00
+[root@master01 ~]# ssh root@node01 'curl 10.254.180.200'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100    23    0    23    0     0   7313      0 --:--:-- --:--:-- --:--:-- 11500You've hit kubia-fccqg
+
+[root@master01 ~]# ssh root@node01 'curl 10.254.180.200'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100    23    0    23    0     0   7920      You've hit kubia-fccqg:--:--     0
+0 --:--:-- --:--:-- --:--:-- 11500
+```
+
+
+
+不是轮询 了 session 固化了 
+
+如果客户端是从 vip 接入的 就不是和 设置 亲和性  会把一个 pod 打满
+
+
+
+
+ex2  同一个服务暴露多个端口
+
+kubectl  edit svc kubia
+
+```
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: 2019-06-12T05:47:07Z
+  name: kubia
+  namespace: default
+  resourceVersion: "5716331"
+  selfLink: /api/v1/namespaces/default/services/kubia
+  uid: 83589f2a-8cd5-11e9-8483-5254003d139c
+spec:
+  clusterIP: 10.254.180.200
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: kubia
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  type: ClusterIP
+status:
+  loadBalancer: {}
+```
+
+
+```
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: 2019-06-12T05:47:07Z
+  name: kubia
+  namespace: default
+  resourceVersion: "5716331"
+  selfLink: /api/v1/namespaces/default/services/kubia
+  uid: 83589f2a-8cd5-11e9-8483-5254003d139c
+spec:
+  clusterIP: 10.254.180.200
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  - port: 443
+    protocol: TCP
+    targetPort: 6443
+  selector:
+    app: kubia
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  type: ClusterIP
+status:
+  loadBalancer: {}
+```
+
+kubectl  edit svc kubia
+error: services "kubia" is invalid
+A copy of your changes has been stored to "/tmp/kubectl-edit-sxt1d.yaml"
+error: Edit cancelled, no valid changes were saved.
+
+
+在原来的 svc 添加 port 不被允许
+
+删除原来的svc
+
+kubectl  delete svc kubia
+
+
+
+创建一个暴露多个端口的 svc
+port 必须有name 字段
+
+cat > svc-https.yaml << EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia
+spec:
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+  - name: https
+    port: 443
+    targetPort: 6443
+  selector:
+    app: kubia
+EOF
+
+
+kubectl  create  -f svc-https.yaml 
+
+kubectl  get svc kubia
+NAME    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE
+kubia   ClusterIP   10.254.244.157   <none>        80/TCP,443/TCP   3m6s
+
+
+rs 没删除  之前的pod 也在只是svc 的 clusterip 变了
+
+测试 80 端口  测试通过
+
+ssh root@node01 'curl 10.254.244.157'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100    23    0    23    0     0   3178      0 --:--:-- --:--:-- --:--:--  3833
+You've hit kubia-7hckg
+
+
+
+测试443 端口
+
+ssh root@node01 'curl -k https://10.254.244.157:443'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0curl: (7) Failed connect to 10.254.244.157:443; Connection refused
+
+
+
+
+因为之前的 pod 没有暴露6443 
+
+修改 rs 
+
+vim rs.yaml 
+
+```
+apiVersion: apps/v1beta2
+kind: ReplicaSet
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia
+        image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+```
+
+
+
+```
+apiVersion: apps/v1beta2
+kind: ReplicaSet
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia
+        image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: https
+          containerPort: 6443
+```
+
+
+删除原来的rs 
+kubectl  delete rs kubia
+
+
+重新创建rs
+
+kubectl  apply  -f rs.yaml 
+replicaset.apps/kubia created
+
+
+
+kubectl  describe  pod kubia-4k298
+
+Ports:          8080/TCP, 6443/TCP
+
+
+kubectl  get pod -owide
+NAME          READY   STATUS      RESTARTS   AGE     IP            NODE             NOMINATED NODE
+alpine        1/1     Running     1          85m     172.30.13.2   192.168.10.243   <none>
+kubia-4k298   1/1     Running     0          2m39s   172.30.13.6   192.168.10.243   <none>
+kubia-hc5l6   1/1     Running     0          2m39s   172.30.13.3   192.168.10.243   <none>
+kubia-jgrnk   1/1     Running     0          2m39s   172.30.6.9    192.168.10.242   <none>
+tool          0/1     Completed   0          78m     172.30.13.3   192.168.10.243   <none>
+
+
+访问 pod ip
+
+curl  172.30.13.6
+curl: (7) Failed connect to 172.30.13.6:80; Connection refused
+
+curl  172.30.13.6:8080
+You've hit kubia-4k298
+
+
+
+
+
+ssh root@192.168.10.243 'docker ps | grep kubia-4k298'
+
+ssh root@192.168.10.243 'docker ps | grep kubia-4k298'
+034d02847a39        52eefa1f1af5                                                 "node app.js"            7 minutes ago       Up 7 minutes                                   k8s_kubia_kubia-4k298_default_3a4c9432-8ce3-11e9-8483-5254003d139c_0
+08e8d93c8f02        registry.access.redhat.com/rhel7/pod-infrastructure:latest   "/usr/bin/pod"           7 minutes ago       Up 7 minutes                                   k8s_POD_kubia-4k298_default_3a4c9432-8ce3-11e9-8483-5254003d139c_0
+
+
+ssh root@192.168.10.243 'docker inspect 034d02847a39'
+
+
+
+
+
+
+ex3 在 svc 中使用 端口名字 而非端口号  容器端口号即使改变了 也不受影响  只要名字不变就可以了
+
+kubectl  edit  svc kubia
+
+
+```
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: 2019-06-12T07:10:13Z
+  name: kubia
+  namespace: default
+  resourceVersion: "5718810"
+  selfLink: /api/v1/namespaces/default/services/kubia
+  uid: 1f843fec-8ce1-11e9-8483-5254003d139c
+spec:
+  clusterIP: 10.254.244.157
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: 6443
+  selector:
+    app: kubia
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}
+```
+
+
+
+```
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: 2019-06-12T07:10:13Z
+  name: kubia
+  namespace: default
+  resourceVersion: "5718810"
+  selfLink: /api/v1/namespaces/default/services/kubia
+  uid: 1f843fec-8ce1-11e9-8483-5254003d139c
+spec:
+  clusterIP: 10.254.244.157
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: http
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: https
+  selector:
+    app: kubia
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}
+```
+
+
+
+
+rs.yaml
+```
+apiVersion: apps/v1beta2
+kind: ReplicaSet
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia
+        image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: https
+          containerPort: 6443
+```
+
+当 svc port 使用name 如果容器的 端口 变了 直接 改变  rs 即可 不用改变 svc
+
+erIP   10.254.244.157   <none>        80/TCP,443/TCP   41m
+[root@master01 ~]# kubectl  get svc kubia
+NAME    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE
+kubia   ClusterIP   10.254.244.157   <none>        80/TCP,443/TCP   42m
+
+
+
+ssh root@node02 'curl  http://10.254.244.157'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0You've hit kubia-hc5l6
+100    23    0    23    0     0    817      0 --:--:-- --:--:-- --:--:--   851
+[root@master01 ~]# ssh root@node02 'curl  https://10.254.244.157'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0curl: (7) Failed connect to 10.254.244.157:443; Connection refused
+
+
+
+
+ex4 
+
+查看 svc 的 endpoint
+
+kubectl  describe svc kubia 
+
+Name:              kubia
+Namespace:         default
+Labels:            <none>
+Annotations:       <none>
+Selector:          app=kubia
+Type:              ClusterIP
+IP:                10.254.244.157
+Port:              http  80/TCP
+TargetPort:        http/TCP
+Endpoints:         172.30.13.3:8080,172.30.13.6:8080,172.30.6.9:8080
+Port:              https  443/TCP
+TargetPort:        https/TCP
+Endpoints:         172.30.13.3:6443,172.30.13.6:6443,172.30.6.9:6443
+Session Affinity:  None
+Events:            <none>
+
+
+查创建svc 是自动创建 同名  endpoint
+
+
+
+kubectl  get endpoints   kubia 
+NAME    ENDPOINTS                                                       AGE
+kubia   172.30.13.3:6443,172.30.13.6:6443,172.30.6.9:6443 + 3 more...   46m
+
+
+kubectl  get endpoints   kubia  -o yaml
+
+apiVersion: v1
+kind: Endpoints
+metadata:
+  creationTimestamp: 2019-06-12T07:10:13Z
+  name: kubia
+  namespace: default
+  resourceVersion: "5720035"
+  selfLink: /api/v1/namespaces/default/endpoints/kubia
+  uid: 1f87554e-8ce1-11e9-8483-5254003d139c
+subsets:
+- addresses:
+  - ip: 172.30.13.3
+    nodeName: 192.168.10.243
+    targetRef:
+      kind: Pod
+      name: kubia-hc5l6
+      namespace: default
+      resourceVersion: "5720033"
+      uid: 3a4df3a7-8ce3-11e9-8483-5254003d139c
+  - ip: 172.30.13.6
+    nodeName: 192.168.10.243
+    targetRef:
+      kind: Pod
+      name: kubia-4k298
+      namespace: default
+      resourceVersion: "5720030"
+      uid: 3a4c9432-8ce3-11e9-8483-5254003d139c
+  - ip: 172.30.6.9
+    nodeName: 192.168.10.242
+    targetRef:
+      kind: Pod
+      name: kubia-jgrnk
+      namespace: default
+      resourceVersion: "5720027"
+      uid: 3a4dc537-8ce3-11e9-8483-5254003d139c
+  ports:
+  - name: https
+    port: 6443
+    protocol: TCP
+  - name: http
+    port: 8080
+    protocol: TCP
+
+
+
+
+接入第三方系统 watch  资源时  就是  watch endpoint
+
+
+
+
+
+
+
+kubectl expose
+
+
+expose
+使用 kubectl expose 命令将资源暴露为新的Kubernetes Service。资源包括：
+
+pod（po），service（svc），replication controller（rc），deployment（deploy），replica set（rs）
+
+
+
+
+cluster ip 可以 将服务暴露给内部客户端
+
+如何 把服务暴露给外部客户端
+
+
+
+
+
+
+ex5  同一个svc  暴露多个端口
+
+```
+cat rs.yaml 
+apiVersion: apps/v1beta2
+kind: ReplicaSet
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia
+        image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: https
+          containerPort: 8000
+```
+
+
+kubectl  apply  -f rs.yaml 
+replicaset.apps/kubia configured
+
+
+
+
+
+
+
+
+cat > svc-https.yaml << EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia
+spec: 
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+  - name: https
+    port: 443
+    targetPort: 8080
+  selector:
+    app: kubia
+EOF
+
+kubectl  apply  -f svc-https.yaml 
+Warning: kubectl apply should be used on resource created by either kubectl create --save-config or kubectl apply
+service/kubia configured
+
+kubectl  delete svc kubia && kubectl  apply  -f svc-https.yaml 
+
+echo $( kubectl get svc kubia   --output=jsonpath={.spec.clusterIP})
+10.254.141.43
+
+
+kubectl  get svc kubia
+NAME    TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+kubia   ClusterIP   10.254.141.43   <none>        80/TCP,443/TCP   14m
+
+
+
+kubectl  get  pod -o wide
+NAME          READY   STATUS      RESTARTS   AGE    IP            NODE             NOMINATED NODE
+alpine        1/1     Running     2          145m   172.30.13.2   192.168.10.243   <none>
+kubia-4k298   1/1     Running     0          62m    172.30.13.6   192.168.10.243   <none>
+kubia-hc5l6   1/1     Running     0          62m    172.30.13.3   192.168.10.243   <none>
+kubia-jgrnk   1/1     Running     0          62m    172.30.6.9    192.168.10.242   <none>
+tool          0/1     Completed   0          138m   172.30.13.3   192.168.10.243   <none>
+
+
+
+
+ssh root@node01 'curl 10.254.141.43'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100    23    0    23    0     0   1496      0 --:--:-- --:--:-- --:--:--  1642
+You've hit kubia-hc5l6
+
+
+ssh root@node01 'curl -k https://10.254.141.43'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+curl: (35) Encountered end of file
+
+
+curl  172.30.13.6:8080
+You've hit kubia-4k298
+
+
+
+
+
+
+kubectl  get endpoints  kubia -o yaml
+apiVersion: v1
+kind: Endpoints
+metadata:
+  creationTimestamp: 2019-06-12T08:11:09Z
+  name: kubia
+  namespace: default
+  resourceVersion: "5723642"
+  selfLink: /api/v1/namespaces/default/endpoints/kubia
+  uid: a293d8d3-8ce9-11e9-8483-5254003d139c
+subsets:
+- addresses:
+  - ip: 172.30.13.3
+    nodeName: 192.168.10.243
+    targetRef:
+      kind: Pod
+      name: kubia-hc5l6
+      namespace: default
+      resourceVersion: "5720033"
+      uid: 3a4df3a7-8ce3-11e9-8483-5254003d139c
+  - ip: 172.30.13.6
+    nodeName: 192.168.10.243
+    targetRef:
+      kind: Pod
+      name: kubia-4k298
+      namespace: default
+      resourceVersion: "5720030"
+      uid: 3a4c9432-8ce3-11e9-8483-5254003d139c
+  - ip: 172.30.6.9
+    nodeName: 192.168.10.242
+    targetRef:
+      kind: Pod
+      name: kubia-jgrnk
+      namespace: default
+      resourceVersion: "5720027"
+      uid: 3a4dc537-8ce3-11e9-8483-5254003d139c
+  ports:
+  - name: https
+    port: 8080
+    protocol: TCP
+  - name: http
+    port: 8080
+    protocol: TCP
+
+
+
+kubectl  get svc kubia -o yaml
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"kubia","namespace":"default"},"spec":{"ports":[{"name":"http","port":80,"targetPort":8080},{"name":"https","port":443,"targetPort":8080}],"selector":{"app":"kubia"}}}
+  creationTimestamp: 2019-06-12T08:11:09Z
+  name: kubia
+  namespace: default
+  resourceVersion: "5723641"
+  selfLink: /api/v1/namespaces/default/services/kubia
+  uid: a29317f2-8ce9-11e9-8483-5254003d139c
+spec:
+  clusterIP: 10.254.141.43
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: kubia
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}
+
+
+
+ex7 
+
+
+ssh root@node01 'docker pull haosdent/https-server'
+ssh root@node02 'docker pull haosdent/https-server'
+
+
+
+
+
+
+
+
+
+docker run -p 443:443 -itd haosdent/https-server
+5fa8623588d60adde192a768c404bbf5f772231c1dd784b8281059d965bdca51
+
+docker inspect 5fa8623588d60a
+
+"IPAddress": "172.30.6.3",
+
+
+
+docker stop 5fa8623588d60a  &&docker rm 5fa8623588d60a
+
+
+
+

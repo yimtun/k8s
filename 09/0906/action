@@ -1,0 +1,145 @@
+v1  lvs -> local kube-proxy -> pod
+
+
+不是每个node 都安装了 kube-proxy 
+
+只有三个 kube-proxy  负载全量的  流量转发
+
+
+半自动化
+
+sre 创建service 使用nodeport    平台分配一个全局端口号  
+分配 流量接入的 入口
+
+
+
+kube-proxy01:4567
+kube-proxy02:4567
+kube-proxy03:4567
+
+
+这三条记录 拿给lvs 组进行添加到 lvs
+申请一个vip 
+lvs  给一个   vip  + vport
+
+
+每个 region  也就是每个机房 有一组lvx 集群
+lvs  集群之间   通过交换机  之间的  OSPF 协议 一个等价的路由配置 路径都是一样长的 
+
+只要横向扩容的时候 把设备加入到  OSPF 里面 挂掉之后就会被摘掉 
+
+
+
+dns 
+
+
+lvs  自身的高可用   OSPF 协议
+
+v1 版本使用 SDN网络  就不是一个简单的lvs overlayer  underlayer 的转换  基于 dpdk  定制的这么一个lvs
+高性能网络处理框架 
+
+
+
+这是  实践讲解service中 的v1 版本
+
+client -> vip:vport {lvs}  -> kube-proxy   {service}   -> pod
+
+问题:
+三个kube-proxy相当于是独立的专门的节点，也就是说真正运行pod的work node上是没有 安装kube-proxy 的
+
+
+没有安装kube-proxy 的node上pod 就不能直接使用  cluserip 访问内部服务了，
+
+那访问内部服务是如下路径吗
+
+client-pod -> vip:vport {lvs} -> kube-proxy -> service clusterip -> endpoint -> target-pod
+
+
+
+
+此场景下  没有安装kube-proxy 的node 上的 pod 需要使用  vip+vport 调内部服务 和外部调用集群内服务的方式一样
+
+
+
+kube-proxy 不稳定 只有三个节点  性能瓶颈
+
+
+V2   通过lvs 直接转发流量到pod   nodeport+ lvs
+
+因为 pod ip 全网可见的  
+macvlan  物理网络
+
+问题  没有了 kube-proxy   那么一个 node 上有两个 pod  怎么办
+
+
+nodeport 是自己维护的 
+
+
+
+
+七层实现 
+
+layer 7
+
+
+
+
+nameing   service   服务发现   notifier    
+
+
+
+nameing=service -> nginx (7层转发 forward)-> 
+
+
+nginx 作为接入层         watching     naming-service 服务发现服务
+
+notifier   watching   api-server   获取 endpoint  并传给  naming server 
+
+
+
+nginx - > pod
+
+
+
+
+nginx 集群  外面有一个 lvs  
+
+
+
+
+
+
+
+
+
+
+
+
+v3  dns  做服务发现  
+
+
+ingress  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

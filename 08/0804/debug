@@ -1,0 +1,26 @@
+
+yum -y install strace
+strace + cmd
+
+
+
+kubeadm  version
+
+git branch -a
+
+
+
+kubeadm config  images list
+I0610 13:04:03.326140  402206 version.go:89] could not fetch a Kubernetes version from the internet: unable to get URL "https://dl.k8s.io/release/stable-1.txt": Get https://dl.k8s.io/release/stable-1.txt: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+I0610 13:04:03.326286  402206 version.go:94] falling back to the local client version: v1.12.0-rc.2
+k8s.gcr.io/kube-apiserver:v1.12.0-rc.2
+k8s.gcr.io/kube-controller-manager:v1.12.0-rc.2
+k8s.gcr.io/kube-scheduler:v1.12.0-rc.2
+k8s.gcr.io/kube-proxy:v1.12.0-rc.2
+k8s.gcr.io/pause:3.1
+k8s.gcr.io/etcd:3.2.24
+k8s.gcr.io/coredns:1.2.2
+
+
+生产环境不可以
+imagePullPolicy: IfNotPresent

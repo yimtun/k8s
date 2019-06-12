@@ -1,0 +1,160 @@
+限制三个 qos 等级的容器的数量
+
+为特定状态或者QoS等级的pod 设置配额 上面的测试中，ResourceQuota 都作用在了所有的pod等对象，但是这样相对来说限制的策略还是比较粗放的，k8s 也给出除了 quota scopes, 让限制粒度更加细化；
+
+
+BestEffort 与 NotBestEffort 相对，就是指是否满足 BestEffort QoS级别的pods。
+Terminating 与 NotTerminating 相对，因为用户可以在pod spec中配置 activeDeadlineSeconds
+字段来标志失败 (Failed) Pod的重试最大时间，超过这个时间不会继续重试，
+常用于Job。Terminating 配额的作用是应用于配置了这个字段的pod，而 NotTerminating 则应用于没有配置该字段的pod。
+
+
+另外：配额范围的取值，也影响着可以限制的内容，比如 BestEffort 只限制pod数量；
+
+比如:
+
+
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: pod-demo
+spec:
+  scopes:
+  - BestEffort
+  - NotTerminating
+  hard:
+    pods: "2"
+意思就是说，这个quota 只会应用于拥有 BestEffort QoS, 以及没有设置有效期的pod上，这样的pod只允许存在4个。
+
+
+ex1  指定limit 创建 Guaranteed 级别的 pod  ResourceQuota 限制 BestEffort 为两个 并不限制 Guaranteed 级别  无论他的数量 
+
+kubectl create ns quota-pod-example
+
+
+
+
+cat  > quota-scope.yaml << EOF
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: pod-demo
+spec:
+  scopes:
+  - BestEffort
+  - NotTerminating
+  hard:
+    pods: "2"
+EOF
+
+
+
+kubectl  -n quota-pod-example  create -f quota-scope.yaml
+
+
+cat  <<EOF >  quota-pod-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pod-quota-demo
+spec:
+  selector:
+    matchLabels:
+      purpose: quota-demo
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        purpose: quota-demo
+    spec:
+      containers:
+      - name: pod-quota-demo
+        image: nginx
+        imagePullPolicy: IfNotPresent
+        resources:
+          limits:
+            memory: "800Mi"
+            cpu: "500m"
+EOF
+
+kubectl -n quota-pod-example  create -f quota-pod-deployment.yaml
+
+kubectl  -n quota-pod-example  describe  deployments pod-quota-demo
+Replicas:               3 desired | 3 updated | 3 total | 3 available | 0 unavailable
+
+
+
+
+
+kubectl  -n quota-pod-example  get pod -o wide 
+
+kubectl  -n quota-pod-example  get pod -o wide 
+NAME                              READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+pod-quota-demo-66b58f56dc-vz7h2   1/1     Running   0          4s    172.30.6.5    192.168.10.242   <none>
+pod-quota-demo-66b58f56dc-wbbq2   1/1     Running   0          4s    172.30.13.7   192.168.10.243   <none>
+pod-quota-demo-66b58f56dc-wnksf   1/1     Running   0          4s    172.30.13.8   192.168.10.243   <none>
+
+
+
+ex2 创建  BestEffort 级别的3 个pod  测试
+
+cat  <<EOF >  quota-pod-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pod-quota-demo-2
+spec:
+  selector:
+    matchLabels:
+      purpose: quota-demo
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        purpose: quota-demo
+    spec:
+      containers:
+      - name: pod-quota-demo
+        image: nginx
+        imagePullPolicy: IfNotPresent
+EOF
+
+
+kubectl -n quota-pod-example  create -f quota-pod-deployment.yaml
+deployment.apps/pod-quota-demo-2 created
+
+
+kubectl  -n quota-pod-example  describe  deployments pod-quota-demo-2
+Replicas:               3 desired | 2 updated | 2 total | 2 available | 1 unavailable
+
+
+
+
+
+
+kubectl  -n quota-pod-example  get pod -o wide 
+NAME                               READY   STATUS    RESTARTS   AGE     IP            NODE             NOMINATED NODE
+pod-quota-demo-2-ff4dfc88c-dpmkj   1/1     Running   0          5s      172.30.6.6    192.168.10.242   <none>
+pod-quota-demo-2-ff4dfc88c-tfrzq   1/1     Running   0          5s      172.30.13.9   192.168.10.243   <none>
+pod-quota-demo-66b58f56dc-vz7h2    1/1     Running   0          3m54s   172.30.6.5    192.168.10.242   <none>
+pod-quota-demo-66b58f56dc-wbbq2    1/1     Running   0          3m54s   172.30.13.7   192.168.10.243   <none>
+pod-quota-demo-66b58f56dc-wnksf    1/1     Running   0          3m54s   172.30.13.8   192.168.10.243   <none>
+
+
+限制生效只能创建两个
+
+
+
+
+清理环境
+
+kubectl  delete ns  quota-pod-example
+
+kubectl  delete ns  quota-pod-example --grace-period=0 --wait=false
+
+
+
+
+
+
+

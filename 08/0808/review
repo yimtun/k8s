@@ -1,0 +1,108 @@
+k8s 设计原则
+
+架构 核心组件
+k8s 对象  对象都有一个对应的结构体 描述它
+
+操作对象的工具 kubectl  kube  conifg
+
+kubectl run 
+kubectl expose
+
+kubectl --dry-run
+
+kubectl  输出自定义格式  custom format  ？？？
+
+快速找到序号的字段  匹配  高级替换
+
+
+kubectl  -n default-cpu-example  describe  deployments
+
+
+
+pause pod  探针 
+
+RestartPolicy
+
+
+pod  优雅退出
+pod  安全
+
+
+pod  bare pod 易失性 没有自愈能力  workload 就是有自愈能力的方案
+
+按照时间 
+
+ReplicaController     rc
+
+kubectl  api-resources | grep replicationcontrollers
+replicationcontrollers            rc                                          true         ReplicationController
+
+
+
+ReplicaSet            rs
+kubectl  api-resources | grep  replicasets
+replicasets                       rs           apps                           true         ReplicaSet
+replicasets                       rs           extensions                     true         ReplicaSet
+
+
+
+
+
+Deployment            deploy
+
+kubectl  api-resources | grep   deployments
+deployments                       deploy       apps                           true         Deployment
+deployments                       deploy       extensions                     true         Deployment
+
+
+StatefulSet    sts
+
+
+kubectl  api-resources | grep    statefulsets
+statefulsets                      sts          apps                           true         StatefulSet
+
+
+DaemonSet         ds
+
+
+kubectl  api-resources | grep   daemonsets
+daemonsets                        ds           apps                           true         DaemonSet
+daemonsets                        ds           extensions                     true         DaemonSet
+
+
+
+
+
+
+
+
+暴露出去   service  
+
+etcd 数据 备份 快照 一个小时做一个 快照 半个小时做一次快照   放到共享存储上  共享存储有多个副本 
+
+
+
+workload  在dashboard 显示工作负载
+
+
+对pod 的封装  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

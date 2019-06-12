@@ -1,0 +1,166 @@
+k8s 对象
+
+type Object struct {
+    metav1.TypeMeta `json:",inline"`
+    metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+    Spec ObjectSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
+    Status ObjectStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
+}
+
+
+Status 是api server 返回的
+
+
+Kubernetes 对象分类：
+
+
+docker 热更新   2c4G   不重启的情况下  增配置 虚拟机在线扩容
+
+通过 k8s 支持 无法热更新
+
+
+横向  纵向  扩缩容
+
+rollout	Deployment, Daemonset的升级过程管理,查看状态、操作历史、暂停升级、恢复升级、回滚等	xx
+rolling-update	   客户端滚动升级，仅限ReplicationController	xx
+scale	          修改Deployment, ReplicaSet, ReplicationController, Job的实例数	xx
+autoscale         为Deploy, RS, RC配置自动伸缩规则(依赖heapster和hpa)	
+
+
+打  patch 
+
+
+
+pod  生命周期
+
+
+pod  container 是两个概念
+
+生命周期也不要混淆
+
+pod  重启策略
+什么时候执行哪些动作
+
+
+探针
+
+pod hook
+
+
+
+pod preset  预设 环境变量 之类   线上环境很少用到 副作用大  个性化太强  不太好用
+
+
+pod 资源管理
+
+为容器申请CPU,Memory
+配置CPU,Memory 硬限制
+理解Pod QOS机制
+为命名空间的pod设置默认、最大、最小资源限制
+为命名空间配置可用资源配额
+为命名空间配置可用资源数量
+如何自定义资源
+监控 pod 的资源使用量
+
+提高资源利用率  合理的卖出去  资源隔离  资源容量的规划 
+资源容量规划 500个node 还有多少资源是可分配的  被业务容器实际使用了多少 还能分多少  多大量的  容量的 buffer
+
+
+容量规划是提前做的  
+如果 存量容器 把资源打满  这时扩容 周期长 
+
+
+kpi  全年使用率
+cpu idle   70%  65%  达到这个峰值多少次 使用率就达标了 
+mem 
+
+
+
+标签选择器
+
+
+label selector (标签选择器), 用于确定 ReplicaController 作用域中有哪些 pod，也可以理解成pod选择器
+replica count (副本数)， 用于指定应该运行的 pod 数量
+pod template (pod 模板)，用于描述创建新的 pod 副本
+
+
+节点故障
+
+bare pod
+
+deplpyment
+
+rc
+
+
+分别的反应
+
+
+将pod  移出 rc  类似于僵尸进程 找不到自己的父进程 父子关系丢失
+
+
+-L  集群压力小
+kubectl get pod -L app  
+
+
+
+scale out
+scale in
+手动水平伸缩  
+
+
+kubectl scale rc kubia --replicas=10
+
+hpa 自动的水平伸缩
+
+
+
+
+单个RC无法将pod与标签 env=devel,env=prod 同时匹配，只能匹配 env=devel的pod，或者 env=prod的pod。
+RC无法根据pod标签名进行进行匹配pod     key value  只有key  没有value  rc 匹配不到 
+
+
+
+pod  qos  ??  区分三种 生产中如何保证  
+服务质量保证 机制 
+资源紧张的时候  kubelet会上报给master  
+
+同级别的两个pod 先杀谁
+
+
+pod 是container的group workload 是pod 的group
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

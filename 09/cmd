@@ -1,1 +1,3 @@
  kubectl  explain ReplicaSet
+
+echo $(kubectl  get svc kubia --output=jsonpath={.spec.sessionAffinity})

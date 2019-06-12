@@ -1,0 +1,10 @@
+kubeadm  init --kubernetes-version v1.12.0
+
+
+-v 8
+
+export BOOTSTRAP_TOKEN=$(kubeadm token create \
+  --description kubelet-bootstrap-token \
+  --groups system:bootstrappers:${node_name}\
+  --kubeconfig ~/.kube/config -v 8)
+

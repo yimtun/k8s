@@ -1,0 +1,21 @@
+域名 访问服务
+
+vip 
+
+
+lvs 全局端口消失了  ？？？ 导致流量丢掉
+
+
+
+ingress 可以代替 nodeport 类型的 service
+
+复用全局端口号 
+
+
+nginx hostpatch
+
+
+ingress  可以维护 nginx
+
+
+公有云 更适合 ingress
