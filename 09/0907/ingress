@@ -19,3 +19,586 @@ ingress  可以维护 nginx
 
 
 公有云 更适合 ingress
+
+nginx 定制开发  lua
+openstry
+
+
+client -> lvs  -> ingress (nodeport server)
+
+
+ex1 install ingress
+
+wget  https://raw.githubusercontent.com/kubernetes/ingress-nginx/nginx-0.20.0/deploy/mandatory.yaml
+
+
+
+kind: deployment  
+namespace ingress-nginx
+replicas 1
+
+image  0.24.1
+
+
+
+ssh root@node01 'docker pull registry.cn-qingdao.aliyuncs.com/kubernetes_xingej/nginx-ingress-controller:0.20.0'
+ssh root@node02 'docker pull registry.cn-qingdao.aliyuncs.com/kubernetes_xingej/nginx-ingress-controller:0.20.0'
+
+
+
+args nginx controller
+使用configmap 管理配置 
+
+
+kind ClusterRole   ServieAccount
+
+
+需要手动建立service  暴露ingress
+
+
+
+hostnetwork  使用物理网络     相比nodeport 不用使用kube-proxy 不需要做转发 
+
+nodeport  
+
+
+
+
+修改 使用hostnetwork  位置 在名称为  nginx-ingress-controller 的  Deployment 下 pod 模板template
+spec 下 
+
+如下  hostNetwork: true  是pod  使用hostnetwork 网络
+
+```
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: nginx-ingress-controller
+  namespace: ingress-nginx
+  labels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/part-of: ingress-nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/part-of: ingress-nginx
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ingress-nginx
+        app.kubernetes.io/part-of: ingress-nginx
+      annotations:
+        prometheus.io/port: "10254"
+        prometheus.io/scrape: "true"
+    spec:
+      hostNetwork: true
+      serviceAccountName: nginx-ingress-serviceaccount
+      containers:
+```
+
+
+
+grep image mandatory.yaml 
+          # Any image is permissible as long as:
+          image: k8s.gcr.io/defaultbackend-amd64:1.5
+          image: quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.20.0
+
+将替代image  改名字为 yaml 中的image
+
+
+node01  node02
+
+docker pull registry.cn-qingdao.aliyuncs.com/kubernetes_xingej/nginx-ingress-controller:0.20.0
+docker pull registry.cn-qingdao.aliyuncs.com/kubernetes_xingej/defaultbackend-amd64:1.5
+
+docker tag registry.cn-qingdao.aliyuncs.com/kubernetes_xingej/nginx-ingress-controller:0.20.0 quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.20.0
+docker tag registry.cn-qingdao.aliyuncs.com/kubernetes_xingej/defaultbackend-amd64:1.5 k8s.gcr.io/defaultbackend-amd64:1.5
+
+
+
+
+kubectl  create  -f mandatory.yaml 
+namespace/ingress-nginx created
+deployment.extensions/default-http-backend created
+service/default-http-backend created
+configmap/nginx-configuration created
+configmap/tcp-services created
+configmap/udp-services created
+serviceaccount/nginx-ingress-serviceaccount created
+role.rbac.authorization.k8s.io/nginx-ingress-role created
+rolebinding.rbac.authorization.k8s.io/nginx-ingress-role-nisa-binding created
+deployment.extensions/nginx-ingress-controller created
+Error from server (AlreadyExists): error when creating "mandatory.yaml": clusterroles.rbac.authorization.k8s.io "nginx-ingress-clusterrole" already exists
+Error from server (AlreadyExists): error when creating "mandatory.yaml": clusterrolebindings.rbac.authorization.k8s.io "nginx-ingress-clusterrole-nisa-binding" already exists
+
+
+
+
+删除重新创建
+
+
+
+kubectl  delete clusterrole nginx-ingress-clusterrole
+kubectl  delete clusterrolebinding nginx-ingress-clusterrole-nisa-binding
+
+
+
+kubectl  delete -f mandatory.yaml 
+namespace "ingress-nginx" deleted
+deployment.extensions "default-http-backend" deleted
+service "default-http-backend" deleted
+configmap "nginx-configuration" deleted
+configmap "tcp-services" deleted
+configmap "udp-services" deleted
+serviceaccount "nginx-ingress-serviceaccount" deleted
+clusterrole.rbac.authorization.k8s.io "nginx-ingress-clusterrole" deleted
+role.rbac.authorization.k8s.io "nginx-ingress-role" deleted
+rolebinding.rbac.authorization.k8s.io "nginx-ingress-role-nisa-binding" deleted
+clusterrolebinding.rbac.authorization.k8s.io "nginx-ingress-clusterrole-nisa-binding" deleted
+deployment.extensions "nginx-ingress-controller" deleted
+
+
+
+
+
+kubectl  create  -f mandatory.yaml 
+
+
+kubectl  -n ingress-nginx  get all
+NAME                                            READY   STATUS    RESTARTS   AGE
+pod/default-http-backend-85b8b595f9-ggkcw       1/1     Running   0          22s
+pod/nginx-ingress-controller-778c59d44c-rh8bj   1/1     Running   0          22s
+
+NAME                           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+service/default-http-backend   ClusterIP   10.254.30.147   <none>        80/TCP    22s
+
+NAME                                       DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/default-http-backend       1         1         1            1           22s
+deployment.apps/nginx-ingress-controller   1         1         1            1           22s
+
+NAME                                                  DESIRED   CURRENT   READY   AGE
+replicaset.apps/default-http-backend-85b8b595f9       1         1         1       22s
+replicaset.apps/nginx-ingress-controller-778c59d44c   1         1         1       22s
+
+
+
+
+
+
+
+
+
+ex2   使用Deployment    创建 pod  并为此创建一个 svc
+
+
+cat > ingress-test.yaml  << EOF
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: nginx
+spec:
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - image: nginx
+        imagePullPolicy: IfNotPresent
+        name: nginx
+        ports:
+        - containerPort: 80
+EOF
+
+kubectl  apply  -f ingress-test.yaml 
+
+
+cat > ingress-svc.yaml << EOF 
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+spec:
+  selector:
+    app: nginx
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+EOF
+
+
+kubectl  create   -f ingress-svc.yaml
+
+
+kubectl  get svc nginx 
+NAME    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+nginx   ClusterIP   10.254.246.243   <none>        80/TCP    23s
+
+
+kubectl  get  deploy nginx -o wide
+NAME    DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE     CONTAINERS   IMAGES   SELECTOR
+nginx   1         1         1            1           3m17s   nginx        nginx    app=nginx
+
+
+kubectl  get  deployments.
+NAME    DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+nginx   1         1         1            1           3m33s
+
+
+
+查看 和 svc  nginx 的 同名的 endpoints
+
+kubectl  get endpoints  nginx
+NAME    ENDPOINTS        AGE
+nginx   172.30.13.8:80   118s
+
+
+
+
+
+ex3  创建 ingress 暴露 nginx svc 服务
+
+
+cat > nginx.testdomain.com.yaml  << EOF
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: nginx-ingress
+spec:
+  rules:
+  - host: nginx.testdomain.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: nginx
+          servicePort: 80
+EOF
+
+
+kubectl create -f nginx.testdomain.com.yaml
+
+
+kubectl  get ingresses.extensions  nginx-ingress 
+NAME            HOSTS                  ADDRESS   PORTS   AGE
+nginx-ingress   nginx.testdomain.com             80      17s
+
+
+
+
+
+kubectl  get ingresses.extensions  nginx-ingress  -o yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  creationTimestamp: 2019-06-13T14:15:32Z
+  generation: 1
+  name: nginx-ingress
+  namespace: default
+  resourceVersion: "5865107"
+  selfLink: /apis/extensions/v1beta1/namespaces/default/ingresses/nginx-ingress
+  uid: b4638bf2-8de5-11e9-8483-5254003d139c
+spec:
+  rules:
+  - host: nginx.testdomain.com
+    http:
+      paths:
+      - backend:
+          serviceName: nginx
+          servicePort: 80
+        path: /
+status:
+  loadBalancer: {}
+
+
+
+
+ex4  验证
+
+查看 ingress contreller 的  转发配置  代理配置
+
+
+kubectl  -n ingress-nginx  get po
+NAME                                        READY   STATUS    RESTARTS   AGE
+default-http-backend-85b8b595f9-ggkcw       1/1     Running   0          22m
+nginx-ingress-controller-778c59d44c-rh8bj   1/1     Running   0          22m
+
+
+
+
+kubectl -n ingress-nginx exec nginx-ingress-controller-778c59d44c-rh8bj  -- cat /etc/nginx/nginx.conf
+
+kubectl -n ingress-nginx exec nginx-ingress-controller-778c59d44c-rh8bj  -- cat /etc/nginx/nginx.conf  > nginx
+
+
+```
+## start server nginx.testdomain.com
+        server {
+                server_name nginx.testdomain.com ;
+                listen 80;
+                set $proxy_upstream_name "-";
+                location / {
+                        set $namespace      "default";
+                        set $ingress_name   "nginx-ingress";
+                        set $service_name   "nginx";
+                        set $service_port   "80";
+                        set $location_path  "/";
+
+                        rewrite_by_lua_block {
+
+                                balancer.rewrite()
+
+                        }
+                        set $proxy_upstream_name "default-nginx-80";
+                        proxy_pass http://upstream_balancer;
+                        proxy_redirect                          off;
+                }
+        }
+        ## end server nginx.testdomain.com
+```
+
+
+测试  ingress  
+
+ kubectl  -n ingress-nginx get all  -o wide
+NAME                                            READY   STATUS    RESTARTS   AGE   IP               NODE             NOMINATED NODE
+pod/default-http-backend-85b8b595f9-ggkcw       1/1     Running   0          33m   172.30.13.7      192.168.10.243   <none>
+pod/nginx-ingress-controller-778c59d44c-rh8bj   1/1     Running   0          33m   192.168.10.243   192.168.10.243   <none>
+
+NAME                           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE   SELECTOR
+service/default-http-backend   ClusterIP   10.254.30.147   <none>        80/TCP    33m   app.kubernetes.io/name=default-http-backend,app.kubernetes.io/part-of=ingress-nginx
+
+NAME                                       DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS                 IMAGES                                                                  SELECTOR
+deployment.apps/default-http-backend       1         1         1            1           33m   default-http-backend       k8s.gcr.io/defaultbackend-amd64:1.5                                     app.kubernetes.io/name=default-http-backend,app.kubernetes.io/part-of=ingress-nginx
+deployment.apps/nginx-ingress-controller   1         1         1            1           33m   nginx-ingress-controller   quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.20.0   app.kubernetes.io/name=ingress-nginx,app.kubernetes.io/part-of=ingress-nginx
+
+NAME                                                  DESIRED   CURRENT   READY   AGE   CONTAINERS                 IMAGES                                                                  SELECTOR
+replicaset.apps/default-http-backend-85b8b595f9       1         1         1       33m   default-http-backend       k8s.gcr.io/defaultbackend-amd64:1.5                                     app.kubernetes.io/name=default-http-backend,app.kubernetes.io/part-of=ingress-nginx,pod-template-hash=85b8b595f9
+replicaset.apps/nginx-ingress-controller-778c59d44c   1         1         1       33m   nginx-ingress-controller   quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.20.0   app.kubernetes.io/name=ingress-nginx,app.kubernetes.io/part-of=ingress-nginx,pod-template-hash=778c59d44c
+
+
+
+
+
+
+curl 192.168.10.242
+curl: (7) Failed connect to 192.168.10.242:80; Connection refused
+[root@master01 ~]# curl 192.168.10.243
+default backend - 404[root@master01 ~]# 
+
+
+
+使用hostnetwork 方式运行的  查看 ingress 的 pod 落在了哪个 node 上 
+写hosts 文件测试
+
+cat /etc/hosts
+192.168.10.243 nginx.testdomain.com
+
+
+ curl nginx.testdomain.com
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+
+
+
+question    hostnetwork 方式不经过 kube-proxy ???
+ 使用 hostnetwork 就不用创建svc 了？
+
+
+
+
+
+ex7 测试  ingress  svc  使用nodeport 方式 暴露服务
+
+流程梳理
+
+nginx-ingress-controller （hostnetwork,nodeport）     (hostnetwork 注意端口冲突？？)
+创建业务集群 （deploy，rs）
+创建业务集群的 service
+创建业务集群service的ingress
+绑定hosts 使用curl 测试域名
+
+
+ex8   相同的Ingress 暴露多个服务  相同的主机 不同的路径
+
+做一个镜像 定义url 测试
+
+
+
+
+ex8 不同主机，不同路径
+
+
+根据请求头中的HOST来控制收到的请求将被转发到哪个服务，
+DNS需要将 nginx.testdomain.com 和 kubia.example.com 都解析到 Ingress控制器的IP。比如：
+
+# curl -H "HOST:nginx.testdomain.com" 192.168.10.243
+
+清理  ingress object
+
+kubectl  delete ingresses.extensions   nginx-ingress
+
+
+kubectl  get svc kubia-nodeport 
+NAME             TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE
+kubia-nodeport   NodePort   10.254.50.65   <none>        80:30123/TCP   25h
+
+
+
+
+
+
+
+
+cat > mix.yaml << EOF
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: mix2
+spec:
+  rules:
+  - host: kubia.example.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: kubia-nodeport
+          servicePort: 80
+  - host: nginx.testdomain.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: nginx
+          servicePort: 80
+EOF
+
+
+kubectl  apply -f mix.yaml
+
+
+kubectl  get ingresses.extensions 
+NAME   HOSTS                                    ADDRESS   PORTS   AGE
+mix2   kubia.example.com,nginx.testdomain.com             80      19s
+
+
+
+kubectl  get ingresses.extensions  mix2  -o yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"extensions/v1beta1","kind":"Ingress","metadata":{"annotations":{},"name":"mix2","namespace":"default"},"spec":{"rules":[{"host":"kubia.example.com","http":{"paths":[{"backend":{"serviceName":"kubia-nodeport","servicePort":80},"path":"/"}]}},{"host":"nginx.testdomain.com","http":{"paths":[{"backend":{"serviceName":"nginx","servicePort":80},"path":"/"}]}}]}}
+  creationTimestamp: 2019-06-13T15:07:31Z
+  generation: 1
+  name: mix2
+  namespace: default
+  resourceVersion: "5869594"
+  selfLink: /apis/extensions/v1beta1/namespaces/default/ingresses/mix2
+  uid: f7949e6e-8dec-11e9-8483-5254003d139c
+spec:
+  rules:
+  - host: kubia.example.com
+    http:
+      paths:
+      - backend:
+          serviceName: kubia-nodeport
+          servicePort: 80
+        path: /
+  - host: nginx.testdomain.com
+    http:
+      paths:
+      - backend:
+          serviceName: nginx
+          servicePort: 80
+        path: /
+status:
+  loadBalancer: {}
+
+
+测试 ingress pod 在哪个node 上 hosts 就写哪个node 的ip 
+
+
+
+ingress 公有云  vip   ??? 很多service 一个公网ip
+
+
+/etc/hosts
+
+192.168.10.243 nginx.testdomain.com
+192.168.10.243 kubia.example.com
+
+
+curl  kubia.example.com
+You've hit kubia-4lfz6
+
+
+curl nginx.testdomain.com
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

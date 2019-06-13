@@ -1,0 +1,655 @@
+根据请求头中的HOST来控制收到的请求将被转发到哪个服务，
+
+DNS需要将 nginx.testdomain.com 和 kubia.example.com 都解析到 Ingress控制器的IP。比如：
+
+# curl -H "HOST:nginx.testdomain.com" 192.168.10.243
+
+curl -H "HOST:nginx.testdomain.com" 192.168.10.243
+
+
+curl -H "HOST:kubia.example.com" 192.168.10.243
+You've hit kubia-hc5l6
+[root@master01 ~]# curl -H "HOST:nginx.testdomain.com" 192.168.10.243
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+
+
+
+
+使用iP 的时候 按如上方式
+
+为什么使用域名就不需要 加 host  因为默认给加上了
+
+
+curl -v nginx.testdomain.com    
+* About to connect() to nginx.testdomain.com port 80 (#0)
+*   Trying 192.168.10.243...
+* Connected to nginx.testdomain.com (192.168.10.243) port 80 (#0)
+> GET / HTTP/1.1
+> User-Agent: curl/7.29.0
+> Host: nginx.testdomain.com
+> Accept: */*
+< HTTP/1.1 200 OK
+
+使用ip 就需要制定  Host
+
+
+
+测试  /etc/hosts
+#192.168.10.243 nginx.testdomain.com
+#192.168.10.243 kubia.example.com
+192.168.10.243 test.xxx.com
+
+
+curl -H "HOST:nginx.testdomain.com"  test.xxx.com
+
+curl -H "HOST:nginx.testdomain.com"  test.xxx.com
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+
+
+
+curl -H "HOST:kubia.example.com"  test.xxx.com
+
+curl -H "HOST:kubia.example.com"  test.xxx.com
+You've hit kubia-4lfz6
+
+
+
+
+
+http 的host 机制
+
+curl -v -H "HOST:kubia.example.com"  test.xxx.com
+* About to connect() to test.xxx.com port 80 (#0)
+*   Trying 192.168.10.243...
+* Connected to test.xxx.com (192.168.10.243) port 80 (#0)
+> GET / HTTP/1.1
+> User-Agent: curl/7.29.0
+> Accept: */*
+> HOST:kubia.example.com
+> 
+< HTTP/1.1 200 OK
+< Server: nginx/1.15.5
+< Date: Thu, 13 Jun 2019 15:27:04 GMT
+< Transfer-Encoding: chunked
+< Connection: keep-alive
+< 
+You've hit kubia-4lfz6
+* Connection #0 to host test.xxx.com left intact
+
+
+
+kubectl  get svc nginx 
+NAME    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+nginx   ClusterIP   10.254.246.243   <none>        80/TCP    85m
+
+
+
+
+
+kubectl  run tool --image=centos --restart=Never --image-pull-policy=IfNotPresent --command sleep 3000
+
+kubectl  run tool --image=centos --restart=Never --image-pull-policy=IfNotPresent --command sleep 3000
+pod/tool created
+[root@master01 ~]# kubectl  exec tool   -- ping nginx
+PING nginx.default.svc.cluster.local (10.254.246.243) 56(84) bytes of data.
+64 bytes from nginx.default.svc.cluster.local (10.254.246.243): icmp_seq=1 ttl=64 time=0.080 ms
+64 bytes from nginx.default.svc.cluster.local (10.254.246.243): icmp_seq=2 ttl=64 time=0.114 ms
+64 bytes from nginx.default.svc.cluster.local (10.254.246.243): icmp_seq=3 ttl=64 time=0.126 ms
+
+
+
+
+
+
+ex2  https
+
+user    https    ingress    http    rs
+
+ingress  做 https 的卸载
+做加解密 性能要求高  可以加芯片 加速卡  部署在  ingress  节点上  有助于 https 的加解密  FPGA
+
+
+openssl genrsa -out tls.key 2048
+openssl req -new -x509 -key tls.key -out tls.cert -days 360 -subj /CN=kubia.example.com
+
+
+将证书和私钥放置 k8s secret对象中 
+kubectl create secret tls tls-secret --cert=tls.cert --key=tls.key
+
+kubectl  get secrets  tls-secret  -o yaml
+apiVersion: v1
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURDekNDQWZPZ0F3SUJBZ0lKQUlWSWg0clhIVW5ETUEwR0NTcUdTSWIzRFFFQkN3VUFNQnd4R2pBWUJnTlYKQkFNTUVXdDFZbWxoTG1WNFlXMXdiR1V1WTI5dE1CNFhEVEU1TURZeE16RTFOREUxTUZvWERUSXdNRFl3TnpFMQpOREUxTUZvd0hERWFNQmdHQTFVRUF3d1JhM1ZpYVdFdVpYaGhiWEJzWlM1amIyMHdnZ0VpTUEwR0NTcUdTSWIzCkRRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRQzR4N2ZDMlBtRDV0SktaYXhudzZrekN2Zzh0Y2Y5VnZXYXpKcFIKVDlGaHEwR2FOc2Q4eVE5d2oxTlhySWZjY1JTV2oyekphdWpFZEZDeDl1MXNJalNLNllLdmNUYlAyOUtmWFNEQgorYlNabDMzZFRtMzAxZTBUZ3gyL0FLcFNVWFkvc3ZzbTFwRE1yNyttQ0lpOTNHMlBaMGFRLzhYN1ZvZEpobyswCitJMUJyZ1JDYk5aZ3p6L01jYjhZZ0V4NzRBWm5tYU5WemRMVWtLYlkxcVhmT1g2OEt4UGc3TlViMlBTUEFWM2wKY0FKc3V2RTFsekxtWEw5a2Z5ZE1uRTdlMWpRc1VJM2NwU0pWaDdPSDVOb1NtZFUwNHFGTTk2TW9TRHJhRG8reQp3YXVPdFBVUC8rSk5ldVhlUzlIeTNackFaME9naytxVWJ1TGVJT2h4N0ZJNHNzcExBZ01CQUFHalVEQk9NQjBHCkExVWREZ1FXQkJTM1k5dS9nN200TnJjMXZCMEN1c3IxK1M2RFN6QWZCZ05WSFNNRUdEQVdnQlMzWTl1L2c3bTQKTnJjMXZCMEN1c3IxK1M2RFN6QU1CZ05WSFJNRUJUQURBUUgvTUEwR0NTcUdTSWIzRFFFQkN3VUFBNElCQVFCLwpDRHhqN3V4bFUzRjRDQSsyMlBjejdUZStzVDMrak53UjNVMEVPbXJzbnp4YndrV1Y5UkJSSlhZUDNkOExPTG5kCi8wKzZSSEg4am90OWZ6OHBLVXVCaEtERlB2NEkyZVNaWjM1cDN4RHVpRG5RMGR3QWg0b3dWNDRkb2htTWRuemYKVzEvZXV2Y2RaTllZaDRjQ1VxNWN5K2RrUW8rVVpIY1JXeW9OQjVWbTVTNW9ZRzFBbDFuTDRhQW96TkhjbFNGegozcVpKMmh3dGhsNElidXhZelZ1bTBXRURnSG1CK25iZ2FpRzc1dXVXV2xCMEdHaVl3bXBkRzl6cVVWRmpKWU5PCnhsZXloODdLUWdlQnNOVFVScXoxSklkNzZiREczckdKd09EZEFsSTlmcjJ2aUlKbHltNGc2V3lKUjlpcDduS2kKQUhkOHBGUGw3aWhPdGczOHNPaGsKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcEFJQkFBS0NBUUVBdU1lM3d0ajVnK2JTU21Xc1o4T3BNd3I0UExYSC9WYjFtc3lhVVUvUllhdEJtamJICmZNa1BjSTlUVjZ5SDNIRVVsbzlzeVdyb3hIUlFzZmJ0YkNJMGl1bUNyM0Uyejl2U24xMGd3Zm0wbVpkOTNVNXQKOU5YdEU0TWR2d0NxVWxGMlA3TDdKdGFReksrL3BnaUl2ZHh0ajJkR2tQL0YrMWFIU1lhUHRQaU5RYTRFUW16VwpZTTgvekhHL0dJQk1lK0FHWjVtalZjM1MxSkNtMk5hbDN6bCt2Q3NUNE96Vkc5ajBqd0ZkNVhBQ2JMcnhOWmN5CjVseS9aSDhuVEp4TzN0WTBMRkNOM0tVaVZZZXpoK1RhRXBuVk5PS2hUUGVqS0VnNjJnNlBzc0dyanJUMUQvL2kKVFhybDNrdlI4dDJhd0dkRG9KUHFsRzdpM2lEb2NleFNPTExLU3dJREFRQUJBb0lCQVFDcVgyT2RJY2cyaVQ0KwpZSzd0WWVnQmEwemxWVXJYMlRWT0RQY0FvQkxUOWo3ZnZVQ0VXektFTzNMQjlRK3ovd1BYcXRqSWdtMnFyZ0MxCmhwTDFVRGlZR0tScHRYNnZldVVpRVpFaHFXYU84N0tXdWprQ05ibUpjeXliTHpiYi9jYUZCemN4WVVkVG8zeVcKejJtZGZiLzdLR05WVUxBd2hXRHFOMHNMdHQwdnYzeGJBblFnQVZ4bEwwYS9YTkYwUFdjS0VTMEZ0NUVQR3NGaAo0Vndsc1llSkVuMGV3eWZkK0dZb3hrN1hGZUhVTFZ2ejJuajg5L1d1cGxkUDU0dGZtb0FZV0VBdUJQaVpVVXBxCkc3alJhaHpZWWxTcXdBMGhua0VYWVBQN1BlMUMzT0dUYTl0NnNoZG5oNzdYMitCeWFxMHAyOWtDK0FYelRmVk0KL2VWNEdTckpBb0dCQU9zbTZZYU4vZTlxUitVeDBvK1Z3MEZVMTMwLytxREJsOXhKUUU3bjNmRE1OSkVJSnJMOApnT1gzcFduVC9CV1dMQjNPd3lJdkVhR3pEZmoxWWVoRFp2WlBGamRwOUhqR3FORHJ3YW9vdlNHZ2xhRXZ6Ym9MCmY0WHloSmFMRWpIYk9YVUZGcXVNVHlJZXVGUE51Y3FpTC9aaWpuSlU4bUpVOHpHbnRxYmxNNklWQW9HQkFNa3AKaktDWlp2MEtWbS9DekJXM21zRVJXZGhvdjRGV0pJRjhtOWZEdks4Z3Z3NzhSbGxMUjU1blAxRHdmbkRIcW05RApJVE5DT01QUEFTSS9xVGJWNkZCcGpGOFNpWmN1M3lQNU0wL0l4VjZ3cXZIcXdTMEp0SkZHNHNUbGtoMDhYQVJKCjE3V0NRWnA4Zkd4ZjQ0eEY4UG95SUF2Q2tvN0lLTFZJS2lreGJyTGZBb0dCQUxIbmVKbXg1MEl3bUVBUUY0dEYKOUxrQ3BSMC9RREJMQnNkRUxBRUdidVQwdVhoWVFGNzlwYzlXTXJFRURoMk94Y1d2WGZZSXdrQWhwUnFMR3cyTApvT1FNSlhTN0ZwZ2hSQ3I3a2tOWUd1N0wvU2c3Y0Z1bXcwM2xrdVlLUlRPdTlhTlF2RHdCSlFWZFZIc2lrOE40ClBPMGMxMFFzZkV4a2xMRW1mNHQ0c0QyWkFvR0FTV0RRblZ5WHhzSFltZGZ5M2hFbGNEdkdERHpaYm5KZnlxUUwKclA4SGV0SjFIeUJEQVJ1R3VtOXJGemxDeGh6dlBMcStCNWFtWWpiR2NSbkx2ZWIxWVMrL05vYnFqYTFaVkNQNAo1YWVVNTErR1c4eUlQc2VGaUdEVkk0R2lkT3VwblI3YWdxbExDUEZUNmF4b3NxaG9xTHRVR1RZV2crTGJocFVXClhBUmVIdjBDZ1lCbEFHeWJIMUdBUWZwdWI4NlFCdHFaZ05TRUVMVmptbU82M3FDUjNJajFPSTRQQUNSUHBHV3IKZkxqL2dKNUZjV2QxaGRWcUR0dVRVaThJVzdKQmhrNWxIQVFTaVlRcFltZWRLUElQT1JXYWFkRFVHTmdJdkZmZgpqRWRnYy9mRTVCU1JvYkRTbTJKSVl3emFmRzJBMkZLK25zRGh1UGFrUG4rU0lvN1JPU0paTXc9PQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=
+kind: Secret
+metadata:
+  creationTimestamp: 2019-06-13T15:41:56Z
+  name: tls-secret
+  namespace: default
+  resourceVersion: "5872606"
+  selfLink: /api/v1/namespaces/default/secrets/tls-secret
+  uid: c6099cb9-8df1-11e9-8483-5254003d139c
+type: kubernetes.io/tls
+
+
+
+私钥已经放入 secret 中了
+
+serviceName: kubia-nodeport  创建service
+
+kubectl  get svc kubia-nodeport  -o yaml
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: 2019-06-12T14:01:46Z
+  name: kubia-nodeport
+  namespace: default
+  resourceVersion: "5751755"
+  selfLink: /api/v1/namespaces/default/services/kubia-nodeport
+  uid: 9dc1fdf6-8d1a-11e9-8483-5254003d139c
+spec:
+  clusterIP: 10.254.50.65
+  externalTrafficPolicy: Local
+  ports:
+  - nodePort: 30123
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: kubia
+  sessionAffinity: None
+  type: NodePort
+status:
+  loadBalancer: {}
+
+
+
+创建 rs
+
+kubectl  get rs kubia -o yaml
+apiVersion: extensions/v1beta1
+kind: ReplicaSet
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"apps/v1beta2","kind":"ReplicaSet","metadata":{"annotations":{},"name":"kubia","namespace":"default"},"spec":{"replicas":3,"selector":{"matchLabels":{"app":"kubia"}},"template":{"metadata":{"labels":{"app":"kubia"}},"spec":{"containers":[{"image":"luksa/kubia","imagePullPolicy":"IfNotPresent","name":"kubia","ports":[{"containerPort":8080,"name":"http"},{"containerPort":8000,"name":"https"}]}]}}}}
+  creationTimestamp: 2019-06-12T07:25:17Z
+  generation: 2
+  name: kubia
+  namespace: default
+  resourceVersion: "5752326"
+  selfLink: /apis/extensions/v1beta1/namespaces/default/replicasets/kubia
+  uid: 3a4a5a70-8ce3-11e9-8483-5254003d139c
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kubia
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        name: kubia
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 8000
+          name: https
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+status:
+  availableReplicas: 3
+  fullyLabeledReplicas: 3
+  observedGeneration: 2
+  readyReplicas: 3
+  replicas: 3
+
+
+
+
+
+
+
+
+
+更新  ingress 
+
+cat mix.yaml 
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: mix2
+spec:
+  tls:
+  - hosts:
+    - kubia.example.com
+    secretName: tls-secret 
+  rules:
+  - host: kubia.example.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: kubia-nodeport
+          servicePort: 80
+  - host: nginx.testdomain.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: nginx
+          servicePort: 80
+
+
+
+这些功能不应该是手写的 开发平台的话应该支持用户 上传证书和私钥  哪个http host 是否需要启用https 在后端生成 上面的yaml
+
+
+
+
+kubectl  apply  -f mix.yaml 
+ingress.extensions/mix2 configured
+
+
+
+
+
+
+/etc/hosts
+192.168.10.243 nginx.testdomain.com
+192.168.10.243 kubia.example.com
+
+
+
+curl -k  https://kubia.example.com
+You've hit kubia-hc5l6
+
+curl  kubia.example.com
+<html>
+<head><title>308 Permanent Redirect</title></head>
+<body>
+<center><h1>308 Permanent Redirect</h1></center>
+<hr><center>nginx/1.15.5</center>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+curl -k https://nginx.testdomain.com
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+
+
+
+curl  nginx.testdomain.com
+<html>
+<head><title>308 Permanent Redirect</title></head>
+<body>
+<center><h1>308 Permanent Redirect</h1></center>
+<hr><center>nginx/1.15.5</center>
+</body>
+</html>
+
+
+
+
+
+
+
+tls 加载后面了
+
+
+kubectl  get ingresses.extensions  mix2 -o yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"extensions/v1beta1","kind":"Ingress","metadata":{"annotations":{},"name":"mix2","namespace":"default"},"spec":{"rules":[{"host":"kubia.example.com","http":{"paths":[{"backend":{"serviceName":"kubia-nodeport","servicePort":80},"path":"/"}]}},{"host":"nginx.testdomain.com","http":{"paths":[{"backend":{"serviceName":"nginx","servicePort":80},"path":"/"}]}}],"tls":[{"hosts":["kubia.example.com"],"secretName":"tls-secret"}]}}
+  creationTimestamp: 2019-06-13T15:07:31Z
+  generation: 2
+  name: mix2
+  namespace: default
+  resourceVersion: "5872992"
+  selfLink: /apis/extensions/v1beta1/namespaces/default/ingresses/mix2
+  uid: f7949e6e-8dec-11e9-8483-5254003d139c
+spec:
+  rules:
+  - host: kubia.example.com
+    http:
+      paths:
+      - backend:
+          serviceName: kubia-nodeport
+          servicePort: 80
+        path: /
+  - host: nginx.testdomain.com
+    http:
+      paths:
+      - backend:
+          serviceName: nginx
+          servicePort: 80
+        path: /
+  tls:
+  - hosts:
+    - kubia.example.com
+    secretName: tls-secret
+status:
+  loadBalancer: {}
+
+
+
+
+curl -k -v  https://kubia.example.com
+* About to connect() to kubia.example.com port 443 (#0)
+*   Trying 192.168.10.243...
+* Connected to kubia.example.com (192.168.10.243) port 443 (#0)
+* Initializing NSS with certpath: sql:/etc/pki/nssdb
+* skipping SSL peer certificate verification
+* SSL connection using TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+* Server certificate:
+* 	subject: CN=kubia.example.com
+* 	start date: Jun 13 15:41:50 2019 GMT
+* 	expire date: Jun 07 15:41:50 2020 GMT
+* 	common name: kubia.example.com
+* 	issuer: CN=kubia.example.com
+> GET / HTTP/1.1
+> User-Agent: curl/7.29.0
+> Host: kubia.example.com
+> Accept: */*
+> 
+< HTTP/1.1 200 OK
+< Server: nginx/1.15.5
+< Date: Thu, 13 Jun 2019 15:52:59 GMT
+< Transfer-Encoding: chunked
+< Connection: keep-alive
+< Strict-Transport-Security: max-age=15724800; includeSubDomains
+< 
+You've hit kubia-4lfz6
+* Connection #0 to host kubia.example.com left intact
+
+
+
+
+/etc/hosts
+#192.168.10.243 nginx.testdomain.com
+#192.168.10.243 kubia.example.com
+#192.168.10.243 test.xxx.com
+
+
+
+
+
+curl  -k -v -H "HOST:kubia.example.com"  https://192.168.10.243
+* About to connect() to 192.168.10.243 port 443 (#0)
+*   Trying 192.168.10.243...
+* Connected to 192.168.10.243 (192.168.10.243) port 443 (#0)
+* Initializing NSS with certpath: sql:/etc/pki/nssdb
+* skipping SSL peer certificate verification
+* SSL connection using TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+* Server certificate:
+* 	subject: CN=Kubernetes Ingress Controller Fake Certificate,O=Acme Co
+* 	start date: Jun 13 13:55:58 2019 GMT
+* 	expire date: Jun 12 13:55:58 2020 GMT
+* 	common name: Kubernetes Ingress Controller Fake Certificate
+* 	issuer: CN=Kubernetes Ingress Controller Fake Certificate,O=Acme Co
+> GET / HTTP/1.1
+> User-Agent: curl/7.29.0
+> Accept: */*
+> HOST:kubia.example.com
+> 
+< HTTP/1.1 200 OK
+< Server: nginx/1.15.5
+< Date: Thu, 13 Jun 2019 15:54:56 GMT
+< Transfer-Encoding: chunked
+< Connection: keep-alive
+< Strict-Transport-Security: max-age=15724800; includeSubDomains
+< 
+You've hit kubia-hc5l6
+* Connection #0 to host 192.168.10.243 left intact
+
+
+
+
+
+curl  -k  -H "HOST:kubia.example.com"  https://192.168.10.243
+You've hit kubia-hc5l6
+
+对应的 service 的endpoint后有三个 pod  每次访问自动负载
+
+curl  -k  -H "HOST:kubia.example.com"  https://192.168.10.243
+You've hit kubia-4k298
+[root@master01 ~]# curl  -k  -H "HOST:kubia.example.com"  https://192.168.10.243
+You've hit kubia-hc5l6
+[root@master01 ~]# curl  -k  -H "HOST:kubia.example.com"  https://192.168.10.243
+You've hit kubia-hc5l6
+[root@master01 ~]# curl  -k  -H "HOST:kubia.example.com"  https://192.168.10.243
+You've hit kubia-4lfz6
+[root@master01 ~]# curl  -k  -H "HOST:kubia.example.com"  https://192.168.10.243
+You've hit kubia-4lfz6
+[root@master01 ~]# curl  -k  -H "HOST:kubia.example.com"  https://192.168.10.243
+You've hit kubia-4lfz6
+
+
+
+
+
+
+
+使用 deployment ingress 可以做适当的扩容
+方便弹性扩容  ingress 属于基础设置服务 希望运行在特定的node 有加速卡的 node 5-10 台  node 上打上 FPGA 的标签
+在创建的时候可以使用 node  Affinity  或者使用 node selector  匹配 label 
+
+只有ingress 可以 部署 使用taint & toleration 
+
+
+ingress 日志拿出来  做监控 日志分析  
+
+
+ex4  ingress 四层转发  dns 
+
+
+
+tcp 转发  mysql 服务
+
+
+
+
+vts 新版本 没有了 
+
+源码
+
+
+
+haproxy  console 做服务发现 
+
+
+
+
+kubectl  get svc nginx  -o yaml
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: 2019-06-13T14:08:12Z
+  name: nginx
+  namespace: default
+  resourceVersion: "5864474"
+  selfLink: /api/v1/namespaces/default/services/nginx
+  uid: ae3497bc-8de4-11e9-8483-5254003d139c
+spec:
+  clusterIP: 10.254.246.243
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: nginx
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}
+
+
+
+
+
+kubectl  get deployments.  nginx  -o yaml
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"extensions/v1beta1","kind":"Deployment","metadata":{"annotations":{},"name":"nginx","namespace":"default"},"spec":{"template":{"metadata":{"labels":{"app":"nginx"}},"spec":{"containers":[{"image":"nginx","imagePullPolicy":"IfNotPresent","name":"nginx","ports":[{"containerPort":80}]}]}}}}
+  creationTimestamp: 2019-06-13T14:05:53Z
+  generation: 1
+  labels:
+    app: nginx
+  name: nginx
+  namespace: default
+  resourceVersion: "5864272"
+  selfLink: /apis/extensions/v1beta1/namespaces/default/deployments/nginx
+  uid: 5b038009-8de4-11e9-8483-5254003d139c
+spec:
+  progressDeadlineSeconds: 2147483647
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: nginx
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - image: nginx
+        imagePullPolicy: IfNotPresent
+        name: nginx
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+status:
+  availableReplicas: 1
+  conditions:
+  - lastTransitionTime: 2019-06-13T14:05:53Z
+    lastUpdateTime: 2019-06-13T14:05:53Z
+    message: Deployment has minimum availability.
+    reason: MinimumReplicasAvailable
+    status: "True"
+    type: Available
+  observedGeneration: 1
+  readyReplicas: 1
+  replicas: 1
+  updatedReplicas: 1
+
+
+四层转发 用的不多   
+ingress 生产  为了性能  多使用 hostnetwork
+
+
+
