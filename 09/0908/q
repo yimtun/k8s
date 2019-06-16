@@ -1,0 +1,46 @@
+dns  ->  vip ->  ingress (hostnetwork)   -> service -> endpoint - pod
+
+
+因为性能使用 hostnetowrk 的话  就不需要创建service 了
+是不是就需要 
+
+
+
+
+
+
+lsof -i tcp:80
+COMMAND    PID     USER   FD   TYPE   DEVICE SIZE/OFF NODE NAME
+lsof: no pwd entry for UID 33
+nginx   118609       33   26u  IPv4 22210040      0t0  TCP *:http (LISTEN)
+lsof: no pwd entry for UID 33
+nginx   118609       33   33u  IPv4 22210044      0t0  TCP *:http (LISTEN)
+lsof: no pwd entry for UID 33
+nginx   118609       33   34u  IPv4 22210045      0t0  TCP *:http (LISTEN)
+
+
+
+
+ps -ef | grep 118609
+33        118609  118558  0 Jun13 ?        00:00:00 nginx: master process /usr/sbin/nginx -c /etc/nginx/nginx.conf
+33        151249  118609  0 Jun13 ?        00:00:01 nginx: worker process
+33        151250  118609  0 Jun13 ?        00:00:01 nginx: worker process
+33        151251  118609  0 Jun13 ?        00:00:01 nginx: worker process
+33        151252  118609  0 Jun13 ?        00:00:01 nginx: worker process
+root      163046  161766  0 00:28 pts/0    00:00:00 grep --color=auto 118609
+
+
+
+
+
+根据父进程 id  查找 nginx 父进程
+
+
+ps -ef |grep 118558
+33        118558  118555  2 Jun13 ?        00:03:34 /nginx-ingress-controller --default-backend-service=ingress-nginx/default-http-backend --configmap=ingress-nginx/nginx-configuration --tcp-services-configmap=ingress-nginx/tcp-services --udp-services-configmap=ingress-nginx/udp-services --publish-service=ingress-nginx/ingress-nginx --annotations-prefix=nginx.ingress.kubernetes.io
+33        118609  118558  0 Jun13 ?        00:00:00 nginx: master process /usr/sbin/nginx -c /etc/nginx/nginx.conf
+root      163341  161766  0 00:29 pts/0    00:00:00 grep --color=auto 118558
+
+
+
+

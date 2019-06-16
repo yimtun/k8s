@@ -1,0 +1,362 @@
+emptydir 
+
+应用场景 多个容器共享数据
+一个pod  里有多个容器
+
+
+
+cat > share.yaml   << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fortune
+spec:
+  containers:
+  - image: luksa/fortune
+    imagePullPolicy: IfNotPresent
+    name: html-generator
+    volumeMounts:
+    - name: html
+      mountPath: /var/htdocs
+  - image: nginx:alpine
+    imagePullPolicy: IfNotPresent
+    name: web-server
+    volumeMounts:
+    - name: html
+      mountPath: /usr/share/nginx/html
+      readOnly: true
+    ports:
+    - containerPort: 80
+      protocol: TCP
+  volumes:
+  - name: html
+    emptyDir: {}
+EOF
+
+
+
+kubectl  create  -f share.yaml 
+
+
+kubectl  get pod  fortune  -owide
+NAME      READY   STATUS    RESTARTS   AGE   IP           NODE             NOMINATED NODE
+fortune   2/2     Running   0          70s   172.30.6.3   192.168.10.242   <none>
+
+
+192.168.10.242 上安装 socat
+
+yum -y install socat
+
+
+kubectl  port-forward fortune 8080:80
+
+curl localhost:8080
+Stay away from flying saucers today.
+
+
+curl localhost:8080
+You will have good luck and overcome many hardships.
+
+
+
+
+
+指定存储介质为 memory
+
+
+cat > share.yaml  << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fortune
+spec:
+  containers:
+  - image: luksa/fortune
+    imagePullPolicy: IfNotPresent
+    name: html-generator
+    volumeMounts:
+    - name: html
+      mountPath: /var/htdocs
+  - image: nginx:alpine
+    imagePullPolicy: IfNotPresent
+    name: web-server
+    volumeMounts:
+    - name: html
+      mountPath: /usr/share/nginx/html
+      readOnly: true
+    ports:
+    - containerPort: 80
+      protocol: TCP
+  volumes:
+  - name: html
+    emptyDir:
+      medium: Memory
+EOF
+
+kubectl delete -f  share.yaml
+
+
+
+kubectl create -f shard.yaml
+
+kubectl  get pod  fortune 
+NAME      READY   STATUS    RESTARTS   AGE
+fortune   2/2     Running   0          4s
+
+
+
+kubectl  port-forward fortune 8080:80
+
+curl localhost:8080
+Training is everything.  The peach was once a bitter almond; cauliflower is
+nothing but cabbage with a college education.
+		-- Mark Twain, "Pudd'nhead Wilson's Calendar"
+
+
+
+
+
+gitrepo volume
+
+
+cat > gitrepo-volume.yaml  << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gitrepo-volume-pod
+spec:
+  containers:
+  - image: nginx:alpine
+    imagePullPolicy: IfNotPresent
+    name: web-server
+    volumeMounts:
+    - name: html
+      mountPath: /usr/share/nginx/html
+      readOnly: true
+    ports:
+    - containerPort: 80
+      protocol: TCP
+  volumes:
+  - name: html
+    gitRepo:
+      repository: https://github.com/bmwx4/k8s-in-practice.git
+      revision: master
+      directory: .
+EOF
+
+
+
+kubectl  create  -f gitrepo-volume.yaml
+
+kubectl  get pod gitrepo-volume-pod 
+NAME                 READY   STATUS              RESTARTS   AGE
+gitrepo-volume-pod   0/1     ContainerCreating   0          43s
+
+
+kubectl  get pod gitrepo-volume-pod  -owide
+NAME                 READY   STATUS              RESTARTS   AGE   IP       NODE             NOMINATED NODE
+gitrepo-volume-pod   0/1     ContainerCreating   0          98s   <none>   192.168.10.242   <none>
+
+
+kubectl  describe  pod gitrepo-volume-pod 
+
+
+Events:
+  Type     Reason       Age                From                     Message
+  ----     ------       ----               ----                     -------
+  Normal   Scheduled    63s                default-scheduler        Successfully assigned default/gitrepo-volume-pod to 192.168.10.242
+  Warning  FailedMount  31s (x7 over 63s)  kubelet, 192.168.10.242  MountVolume.SetUp failed for volume "html" : failed to exec 'git clone -- https://github.com/bmwx4/k8s-in-practice.git .': : executable file not found in $PATH
+
+
+
+
+242 安装git
+
+yum -y install  git
+
+
+
+kubectl  delete pod gitrepo-volume-pod 
+
+kubectl  create  -f gitrepo-volume.yaml 
+pod/gitrepo-volume-pod created
+
+
+
+
+
+
+kubectl  describe  pod gitrepo-volume-pod
+
+Containers:
+  web-server:
+    Container ID:   
+    Image:          nginx:alpine
+    Image ID:       
+    Port:           80/TCP
+    Host Port:      0/TCP
+    State:          Waiting
+      Reason:       ContainerCreating
+    Ready:          False
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /usr/share/nginx/html from html (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-k5zqn (ro)
+
+
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  13s   default-scheduler  Successfully assigned default/gitrepo-volume-pod to 192.168.10.242
+
+
+
+kubectl  get pod gitrepo-volume-pod  -owide
+NAME                 READY   STATUS              RESTARTS   AGE   IP       NODE             NOMINATED NODE
+gitrepo-volume-pod   0/1     ContainerCreating   0          64s   <none>   192.168.10.242   <none>
+
+
+
+kubectl  describe  pod gitrepo-volume-pod
+
+Events:
+  Type     Reason       Age    From                     Message
+  ----     ------       ----   ----                     -------
+  Normal   Scheduled    2m24s  default-scheduler        Successfully assigned default/gitrepo-volume-pod to 192.168.10.242
+  Warning  FailedMount  21s    kubelet, 192.168.10.242  Unable to mount volumes for pod "gitrepo-volume-pod_default(a2048982-9011-11e9-8483-5254003d139c)": timeout expired waiting for volumes to attach or mount for pod "default"/"gitrepo-volume-pod". list of unmounted volumes=[html]. list of unattached volumes=[html default-token-k5zqn]
+
+
+
+kubectl  describe  pod gitrepo-volume-pod 
+Events:          <none>
+
+
+
+kubectl  get pod gitrepo-volume-pod  -o wide
+NAME                 READY   STATUS    RESTARTS   AGE     IP           NODE             NOMINATED NODE
+gitrepo-volume-pod   1/1     Running   0          4h39m   172.30.6.6   192.168.10.242   <none>
+
+
+curl  172.30.6.6/README.md
+
+
+
+master
+kubectl  port-forward gitrepo-volume-pod 8080:80
+socat TCP4-LISTEN:8000,reuseaddr,fork TCP4:127.0.0.1:8080 
+
+
+
+
+[root@master01 ~]# curl  192.168.10.232:8000/_book/index.html
+
+
+
+做平台的时候  直接对接  repo  也很方便   但是   在做平台的时候 平台提供的 provisos   
+不希望吧功能做的 大  太过分散   希望能够尽量的收敛  收敛到一个口 用户麻烦  平台好管理
+
+用户需求很大 可以开放 
+需求少  dockerbuild  的时候 
+
+
+脚本定期轮询 git 保证最新代码
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

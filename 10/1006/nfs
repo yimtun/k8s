@@ -1,0 +1,164 @@
+master
+
+kubectl  delete pod test-hostpath 
+
+搭建测试  nfs  
+
+
+yum install -y nfs-utils
+
+
+
+
+mkdir   -p /data/nfs
+chmod o+w /data/nfs/
+
+
+
+
+echo '/data/nfs   *(rw,sync,no_root_squash,insecure)'   > /etc/exports
+
+
+cat /etc/exports
+/data/nfs   *(rw,sync,no_root_squash,insecure)
+
+
+
+systemctl  restart   nfs-server
+systemctl restart rpcbind
+
+
+
+node02 测试
+
+yum install nfs-utils -y
+
+
+
+mount -t nfs 192.168.10.232:/data/nfs /data
+
+[root@node02 ~]# mkdir  /data
+[root@node02 ~]# mount -t nfs 192.168.10.232:/data/nfs /data
+mount: wrong fs type, bad option, bad superblock on 192.168.10.232:/data/nfs,
+       missing codepage or helper program, or other error
+       (for several filesystems (e.g. nfs, cifs) you might
+       need a /sbin/mount.<type> helper program)
+
+       In some cases useful info is found in syslog - try
+       dmesg | tail or so.
+
+
+[root@node02 ~]# mount |grep data
+192.168.10.232:/data/nfs on /data type nfs4 (rw,relatime,vers=4.1,rsize=1048576,wsize=1048576,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,clientaddr=192.168.10.243,local_lock=none,addr=192.168.10.232)
+
+
+
+
+
+
+
+
+
+cat > test-nfs.yaml  << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-nfs
+spec:
+  containers:
+    - name: test-nfs
+      image: bmwx4/kugo:v1.0
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+       - name: nfs-storage
+         mountPath: /home/nfs-client/
+  volumes:
+  - name: nfs-storage
+    nfs:
+     server: 192.168.10.232
+     path: "/data/nfs"
+EOF
+
+
+
+kubectl  create  -f test-nfs.yaml 
+
+
+
+kubectl  describe  pod test-nfs
+
+ Warning  FailedMount  10s  kubelet, 192.168.10.242  MountVolume.SetUp failed for volume "nfs-storage" : mount failed: exit status 32
+Mounting command: systemd-run
+Mounting arguments: --description=Kubernetes transient mount for /var/lib/kubelet/pods/b0234e40-9040-11e9-8483-5254003d139c/volumes/kubernetes.io~nfs/nfs-storage --scope -- mount -t nfs 192.168.10.232:/data/nfs /var/lib/kubelet/pods/b0234e40-9040-11e9-8483-5254003d139c/volumes/kubernetes.io~nfs/nfs-storage
+Output: Running scope as unit run-3567625.scope.
+mount: wrong fs type, bad option, bad superblock on 192.168.10.232:/data/nfs,
+       missing codepage or helper program, or other error
+       (for several filesystems (e.g. nfs, cifs) you might
+       need a /sbin/mount.<type> helper program)
+
+       In some cases useful info is found in syslog - try
+       dmesg | tail or so.
+
+
+node 没有安装nfs 客户端
+
+
+
+
+grep -r 'BindIPv6Only'   /usr/lib/systemd/system/*
+/usr/lib/systemd/system/rpcbind.socket:BindIPv6Only=ipv6-only
+
+vim  /usr/lib/systemd/system/rpcbind.socket
+
+#ListenStream=[::]:111
+#ListenDatagram=[::]:111
+
+
+systemctl restart rpcbind
+
+
+242 安装
+
+yum install nfs-utils -y
+
+
+重新创建
+kubectl  delete pod test-nfs
+
+kubectl  create  -f test-nfs.yaml 
+
+
+kubectl  exec test-nfs  -- ls /home/nfs-client/
+abc
+
+
+
+echo test-nfs >  /data/nfs/abc
+
+[root@master01 nfs]# kubectl  exec test-nfs  -- cat   /home/nfs-client/abc
+test-nfs
+
+
+
+生产 每个用户一个目录
+
+pub  user-a user-b
+
+1 依赖的数据  
+2 生产的数据 给别人用
+
+
+
+共享文件系统   ceph-fs nfs  
+
+kubectl  delete pod  test-nfs 
+
+
+
+
+
+
+
+
+
+

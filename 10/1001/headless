@@ -1,0 +1,99 @@
+headless service  大厂用的较多
+
+dns 解析 查询 返回真实  pod ip
+
+
+headless service 
+通过dns解析 返回所有 pod  真实ip
+
+
+
+场景 
+容器ip   全网可见额话    容器主机名 注册到公司内部dns   可以使用headless service   
+
+可以接入 内部的服务发现  
+
+
+
+
+
+headless service 
+
+ex1 
+
+kugos  image ???
+
+
+
+kubectl  delete pod tool
+
+
+正常的 service   dns 解析的事  clusterip
+
+
+
+cat << EOF > req-limit.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: limit-pod
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.242
+  containers:
+  - name: main
+    image: busybox
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: "20Mi"
+    command: ["dd","if=/dev/zero","of=/dev/null"]
+EOF
+
+kubectl create -f req-limit.yaml
+
+
+ kubectl get node
+NAME             STATUS                     ROLES    AGE   VERSION
+192.168.10.242   Ready,SchedulingDisabled   <none>   56d   v1.12.0-rc.2
+192.168.10.243   Ready                      <none>   56d   v1.12.0-rc.2
+[root@master01 ~]# kubectl  uncordon  192.168.10.242
+node/192.168.10.242 uncordoned
+[root@master01 ~]# kubectl get node
+NAME             STATUS   ROLES    AGE   VERSION
+192.168.10.242   Ready    <none>   56d   v1.12.0-rc.2
+192.168.10.243   Ready    <none>   56d   v1.12.0-rc.2
+
+
+
+
+ps ajx| grep  sslocal 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

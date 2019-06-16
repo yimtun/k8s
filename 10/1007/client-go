@@ -1,0 +1,200 @@
+创建之后 
+
+拿到这个pod 不一定是running 
+
+
+他是一个  restful  异步接口
+
+不是立马返回结果  异步的结果  返回一个状态需要查  
+
+根据任务的返回拿到任务的id
+查 成功与否
+
+
+请求成功 不是创建成功
+
+pod status  running
+containter Ready True
+
+
+containerStatuses
+state: runing
+
+phase running   ==   kubectl get pod   Running
+
+
+https://github.com/kubernetes/client-go
+
+
+Compatibility matrix
+
+
+
+
+
+
+kubectl  config  view
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: DATA+OMITTED
+    server: https://192.168.10.232:6443
+  name: kubernetes
+contexts:
+- context:
+    cluster: kubernetes
+    user: bmw
+  name: bmw
+- context:
+    cluster: kubernetes
+    user: admin
+  name: kubernetes
+current-context: kubernetes
+kind: Config
+preferences: {}
+users:
+- name: admin
+  user:
+    client-certificate-data: REDACTED
+    client-key-data: REDACTED
+- name: bmw
+  user:
+    token: eyJhbGciOiJSUzI1NiIsImtpZCI6IiJ9.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJkZWZhdWx0Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6ImJtdy10b2tlbi02OWd3bSIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJibXciLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiJkMWRkYTgxNi03YjdkLTExZTktOWNmMi01MjU0MDAzZDEzOWMiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6ZGVmYXVsdDpibXcifQ.WfUnhJnv_I8iJGkZEA52rjG7G3td3xFLtIonA71LmRLTGt2tZ6fImeqyBtZEeSbbVo-NnJerVyfEFbhUZCzLtNDlrLaY3yLnbjueXiytRLCisJnapyfofHaQ8jW2FSJqLyCcHFzdKpvHsFIQy2d-LlImec7w39AqgTC8WzOCPVDkcHCS37eKO6NyPH0YsuiB2R0fEwYvTc-gZt7qYXZuM5aJL59tupbaOYfkg4ikHWZKL8sSk-znsikTz9EK6OL_8rHAwdwCHDuILBBd0XBP6Trg6GgBwdsc8-p0Y3t0accw_SHP-qpmNWxdp7x9IfkooCiOg0Y5kbIBqd8omAnCfA
+
+
+[root@master01 ~]# scp /root/.kube/config     172.16.99.2:/opt/go/src/client-go-kugo/kubeconfig
+root@172.16.99.2's password: 
+config                
+
+
+
+cd /opt/go/src/client-go-kugo/
+go run main.go  --kubeconfig  kubeconfig
+
+
+
+[root@localhost client-go-kugo]# go run main.go  --kubeconfig  kubeconfig
+my operator
+ERROR: logging before flag.Parse: I0616 23:35:55.227041 1002909 root.go:184] POD CREATED: ingress-nginx/nginx-ingress-controller-778c59d44c-rh8bj
+ERROR: logging before flag.Parse: I0616 23:35:55.227268 1002909 root.go:184] POD CREATED: default/fortune
+ERROR: logging before flag.Parse: I0616 23:35:55.227300 1002909 root.go:184] POD CREATED: kube-system/monitoring-influxdb-679d6dfb4d-fz2sz
+ERROR: logging before flag.Parse: I0616 23:35:55.227332 1002909 root.go:184] POD CREATED: kube-system/heapster-77db4c4496-gtszb
+ERROR: logging before flag.Parse: I0616 23:35:55.227355 1002909 root.go:184] POD CREATED: kube-system/coredns-779ffd89bd-p9sr8
+ERROR: logging before flag.Parse: I0616 23:35:55.227378 1002909 root.go:184] POD CREATED: default/test-emptydir
+ERROR: logging before flag.Parse: I0616 23:35:55.227405 1002909 root.go:184] POD CREATED: ingress-nginx/default-http-backend-85b8b595f9-ggkcw
+ERROR: logging before flag.Parse: I0616 23:35:55.227460 1002909 root.go:184] POD CREATED: default/gitrepo-volume-pod
+ERROR: logging before flag.Parse: I0616 23:35:55.227483 1002909 root.go:184] POD CREATED: kube-system/kubernetes-dashboard-659798bd99-ppfs7
+ERROR: logging before flag.Parse: I0616 23:35:55.227513 1002909 root.go:184] POD CREATED: pod-extend-resource/volume2
+ERROR: logging before flag.Parse: I0616 23:35:55.227538 1002909 root.go:184] POD CREATED: kube-system/monitoring-grafana-5c5fbc85b-97xgf
+
+
+
+kubectl  delete pod test-nfs
+
+
+
+
+
+vim /opt/go/src/client-go-kugo/cmd/root.go 
+
+/select
+
+
+                /*
+                // 创建一个factory
+                sharedInformerFactory := informers.NewSharedInformerFactoryWithOptions(clientset, time.Minute*1)
+                // start()
+                controller := NewPodLoggingController(sharedInformerFactory)
+                stop := make(chan struct{})
+                defer close(stop)
+                err = controller.Run(stop)
+                if err != nil {
+                        glog.Fatal(err)
+                }
+                select {}
+                */
+
+
+                        namespace := "default"
+                        pod := "test-hostpath"
+
+
+
+
+
+
+kubectl  get pod  test-hostpath
+NAME            READY   STATUS    RESTARTS   AGE
+test-hostpath   1/1     Running   0          15s
+
+
+go run main.go  --kubeconfig  kubeconfig
+
+
+
+
+kubectl  delete pod test-hostpath 
+pod "test-hostpath" deleted
+
+
+There are 12 pods in the cluster
+Found pod test-hostpath in namespace default
+There are 11 pods in the cluster
+Pod test-hostpath in namespace default not found
+There are 11 pods in the cluster
+Pod test-hostpath in namespace default not found
+There are 11 pods in the cluster
+Pod test-hostpath in namespace default not found
+There are 11 pods in the cluster
+Pod test-hostpath in namespace default not found
+There are 11 pods in the cluster
+Pod test-hostpath in namespace default not found
+
+
+
+
+
+
+
+
+api server  cache   ecd 
+
+ ResourceVersion: "0",
+
+etcd 压力
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

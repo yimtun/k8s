@@ -1,0 +1,79 @@
+docker  mount path
+
+
+容器外面  hostpath
+
+
+cat > hostpath.yaml  << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-hostpath
+spec:
+  containers:
+  - image: bmwx4/kugo:v1.0
+    imagePullPolicy: IfNotPresent
+    name: test-container
+    volumeMounts:
+    - mountPath: /test-pd
+      name: test-volume
+  volumes:
+  - name: test-volume
+    hostPath:
+      type: Directory
+      path: /data
+EOF
+
+
+Directory	如果给定的路径不存在会报错
+
+ssh  root@node01 'mkdir /data'
+
+ssh  root@node01 'echo   test-hostpath >> /data/test'
+
+
+
+
+kubectl  create  -f hostpath.yaml 
+pod/test-hostpath created
+
+
+kubectl  get pod test-hostpath  -o wide
+NAME            READY   STATUS    RESTARTS   AGE   IP           NODE             NOMINATED NODE
+test-hostpath   1/1     Running   0          24s   172.30.6.9   192.168.10.242   <none>
+
+
+
+
+
+
+kubectl  exec  test-hostpath  --  ls /test-pd
+
+kubectl  exec  test-hostpath  --  cat  /test-pd/test
+test-hostpath
+
+
+
+
+hostpath 历史原因  现在用的较多  
+
+
+2.7 T    40  50 个容器 
+
+一个容器  100  200G  磁盘空间运行
+
+线上 单独一个块做  hostpath
+
+ext4 
+
+xfs quota 限制
+
+
+数据不会被删除 需要一个定期清理的机制 
+定期的清理机制  hook  删除  不行  有的业务希望保存几天      业务需要保存      保存七天 没有读写就删除
+
+
+业务日志 使用  hostpath  写入到本地盘 性能最好  业务不需要改造 做适配 让步   
+建议把日志转走  
+
+

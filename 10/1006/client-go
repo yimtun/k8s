@@ -1,0 +1,89 @@
+https://github.com/bmwx4/client-go-kugo
+
+
+k8s  管理 k8s  
+
+自己写 controller  
+自己写  Operator
+
+
+主要package
+主要的几个package包的功能说明：
+
+kubernetes： 访问 Kubernetes API的一系列的clientset
+discovery：  通过Kubernetes API 进行服务发现
+dynamic：    对任意Kubernetes对象执行通用操作的动态client  可以把多个client放在一个map 里 去选择哪个client
+transport：  启动连接和鉴权auth
+tools/cache：controllers控制器
+
+
+git clone https://github.com/bmwx4/client-go-kugo
+
+mv client-go-kugo   $GOPATH/src/
+
+
+ls $GOPATH/src/client-go-kugo/
+
+ls $GOPATH/src/client-go-kugo/vendor
+
+ls $GOPATH/src/client-go-kugo/vendor/k8s.io/
+
+ls $GOPATH/src/client-go-kugo/vendor/k8s.io/client-go/
+
+ls $GOPATH/src/client-go-kugo/vendor/k8s.io/client-go/
+discovery  informers  kubernetes  LICENSE  listers  pkg  plugin  rest  tools  transport  util
+
+
+
+
+Informer
+Client-go包中一个相对较为高端的设计在于Informer的设计，
+我们知道我们可以直接通过Kubernetes API交互，但是考虑一点就是交互的形式，Informer设计为List/Watch的方式。
+Informer在初始化的时先通过List去从Kubernetes API中取出资源的全部object对象，并同时缓存，
+然后后面通过Watch的机制去监控资源，这样的话，通过Informer及其缓存，
+我们就可以直接和Informer交互而不是每次都和Kubernetes API交互。 
+Informer另外一块内容在于提供了事件handler机制，并会触发回调，
+这样上层应用如Controller就可以基于回调处理具体业务逻辑。
+因为Informer通过List、Watch机制可以监控到所有资源的所有事件，
+因此只要给Informer添加ResourceEventHandler 
+实例的回调函数实例取实现OnAdd(obj interface{}) OnUpdate(oldObj, newObj interface{}) 和 OnDelete(obj interface{})这三个方法，
+就可以处理好资源的创建、更新和删除操作 Kubernetes中都是各种controller的实现，各种controller都会用到Informer。 
+
+
+
+
+
+
+
+client-go 启动的时候  list  watch  api server  建立一个长连接
+
+把拿到的 object放在 队列里面   异步的  informer 会从 队列里面拿到 object 建立索引  将对象和索引 分开存储到线程安全的 storage 里面
+
+
+响应时间的  handle   分发时间 function 
+
+
+从本地 拿 object  处理
+
+
+事件 和object是分离的 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

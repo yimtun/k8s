@@ -1,0 +1,131 @@
+kubectl delete deploy kubia
+
+
+
+cat >  test.yaml  << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-emptydir
+spec:
+  containers:
+  - image: bmwx4/kugo:v1.0
+    imagePullPolicy: IfNotPresent
+    name: container
+    volumeMounts:
+    - mountPath: /cache
+      name: cache-volume
+  volumes:
+  - name: cache-volume
+    emptyDir: {}
+EOF
+
+
+kubectl  create  -f  test.yaml
+
+
+kubectl  exec test-emptydir  -- mount | grep cache 
+/dev/vda1 on /cache type xfs (rw,relatime,attr2,inode64,noquota)
+
+
+
+
+[root@master01 ~]# kubectl  describe  pod test-emptydir  
+Name:               test-emptydir
+Namespace:          default
+Priority:           0
+PriorityClassName:  <none>
+Node:               192.168.10.242/192.168.10.242
+Start Time:         Sun, 16 Jun 2019 15:54:44 +0800
+Labels:             <none>
+Annotations:        <none>
+Status:             Running
+IP:                 172.30.6.10
+Containers:
+  container:
+    Container ID:   docker://57a72eab75ee5cbf58f7e0049694db0872bf1faf788407a4ea6f11a0ef6bf4ed
+    Image:          bmwx4/kugo:v1.0
+    Image ID:       docker-pullable://bmwx4/kugo@sha256:46312fcea158c09e1b8084e8b30b84c816e7042f929c6d85d242ecb452667407
+    Port:           <none>
+    Host Port:      <none>
+    State:          Running
+      Started:      Sun, 16 Jun 2019 15:54:45 +0800
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /cache from cache-volume (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-k5zqn (ro)
+Conditions:
+  Type              Status
+  Initialized       True 
+  Ready             True 
+  ContainersReady   True 
+  PodScheduled      True 
+Volumes:
+  cache-volume:
+    Type:    EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:  
+  default-token-k5zqn:
+    Type:        Secret (a volume populated by a Secret)
+    SecretName:  default-token-k5zqn
+    Optional:    false
+QoS Class:       BestEffort
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute for 300s
+                 node.kubernetes.io/unreachable:NoExecute for 300s
+Events:
+  Type    Reason     Age   From                     Message
+  ----    ------     ----  ----                     -------
+  Normal  Scheduled  73s   default-scheduler        Successfully assigned default/test-emptydir to 192.168.10.242
+  Normal  Pulled     73s   kubelet, 192.168.10.242  Container image "bmwx4/kugo:v1.0" already present on machine
+  Normal  Created    73s   kubelet, 192.168.10.242  Created container
+  Normal  Started    72s   kubelet, 192.168.10.242  Started container
+
+
+
+emptydir  没有指定的时候 使用本地磁盘空间  可以使用内存
+
+
+
+Mounts:
+      /cache from cache-volume (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-k5zqn (ro)
+
+
+
+mount path
+host paht
+
+
+Volumes:
+  cache-volume:
+    Type:    EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:   默认disk 可以是 memory
+
+
+
+应用场景 多个容器共享数据
+一个pod  里有多个容器
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

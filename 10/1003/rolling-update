@@ -1,0 +1,100 @@
+kubectl  get endpoints  kubia  -owide
+NAME    ENDPOINTS                                         AGE
+kubia   172.30.6.3:8080,172.30.6.6:8080,172.30.6.9:8080   10m
+
+
+kubectl  get rc
+NAME       DESIRED   CURRENT   READY   AGE
+kubia-v1   3         3         3       11m
+[root@master01 ~]# kubectl  get rc kubia-v1 
+NAME       DESIRED   CURRENT   READY   AGE
+kubia-v1   3         3         3       11m
+
+
+
+以后客户端 主导发布更新  客户端以为停掉  发布更新的操作也就停了 
+
+kubectl rolling-update kubia-v1 kubia-v2 --image=luksa/kubia:v2 --v 6
+
+
+ctrl +c
+
+
+[root@master01 ~]# kubectl  get rc
+NAME       DESIRED   CURRENT   READY   AGE
+kubia-v1   2         2         2       14m
+kubia-v2   2         2         2       90s
+
+
+
+kubectl  get rc kubia-v2 -o yaml
+spec:
+  replicas: 2
+  selector:
+    app: kubia
+    deployment: 9fbfb984ee02c66be83dcc49beccc3bd
+
+
+
+
+
+while true;do curl 10.254.168.213;done;
+This is v1 running in pod kubia-v1-nb6n4
+This is v1 running in pod kubia-v1-h9b7d
+This is v2 running in pod kubia-v2-cfslq
+This is v2 running in pod kubia-v2-4dj5g
+This is v1 running in pod kubia-v1-nb6n4
+This is v1 running in pod kubia-v1-h9b7d
+This is v2 running in pod kubia-v2-cfslq
+This is v2 running in pod kubia-v2-4dj5g
+This is v1 running in pod kubia-v1-nb6n4
+
+
+kubectl  get endpoints  kubia -o wide
+NAME    ENDPOINTS                                                       AGE
+kubia   172.30.6.10:8080,172.30.6.11:8080,172.30.6.3:8080 + 1 more...   16m
+
+
+
+
+
+
+继续执行滚动更新
+
+
+kubectl rolling-update kubia-v1 kubia-v2 --image=luksa/kubia:v2 --v 6
+
+kubectl  get rc 
+NAME       DESIRED   CURRENT   READY   AGE
+kubia-v1   1         1         1       18m
+kubia-v2   3         3         3       5m29s
+
+
+
+
+replicationcontroller/kubia-v2 rolling updated to "kubia-v2"
+
+
+
+
+
+
+kubectl  get rc 
+NAME       DESIRED   CURRENT   READY   AGE
+kubia-v2   3         3         3       6m44s
+
+
+
+
+kubectl  get pod -l app=kubia -o wide
+NAME             READY   STATUS    RESTARTS   AGE     IP            NODE             NOMINATED NODE
+kubia-v2-4dj5g   1/1     Running   0          7m21s   172.30.6.10   192.168.10.242   <none>
+kubia-v2-cfslq   1/1     Running   0          6m15s   172.30.6.11   192.168.10.242   <none>
+kubia-v2-hp8r6   1/1     Running   0          2m28s   172.30.6.6    192.168.10.242   <none>
+
+[root@master01 ~]# kubectl  get endpoints  kubia -o wide
+NAME    ENDPOINTS                                           AGE
+kubia   172.30.6.10:8080,172.30.6.11:8080,172.30.6.6:8080   20m
+
+
+改pod 名字了  

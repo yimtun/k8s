@@ -1,0 +1,11 @@
+开发  k8s  
+
+
+
+
+ps -ef |grep kubelet
+root     1249913 1112172  0 15:45 pts/0    00:00:00 grep --color=auto kubelet
+root     3502024       1  5 Jun11 ?        06:08:44 /opt/k8s/bin/kubelet --cert-dir=/etc/kubernetes/cert --bootstrap-kubeconfig=/etc/kubernetes/kubelet-bootstrap.kubeconfig --kubeconfig=/etc/kubernetes/kubelet.kubeconfig --config=/etc/kubernetes/kubelet.config.json --hostname-override=192.168.10.243 --pod-infra-container-image=registry.access.redhat.com/rhel7/pod-infrastructure:latest --allow-privileged=true --alsologtostderr=true --logtostderr=false --log-dir=/var/log/kubernetes --v=2
+
+
+

@@ -1,0 +1,221 @@
+bmwx4/kugo
+
+kubectl  exec limit-pod  -- nslookup  kubernetes
+Server:		10.254.0.2
+Address:	10.254.0.2:53
+
+** server can't find kubernetes.default.svc.cluster.local.: NXDOMAIN
+
+*** Can't find kubernetes.svc.cluster.local.: No answer
+*** Can't find kubernetes.cluster.local.: No answer
+*** Can't find kubernetes.default.svc.cluster.local.: No answer
+*** Can't find kubernetes.svc.cluster.local.: No answer
+*** Can't find kubernetes.cluster.local.: No answer
+
+
+为测试镜像 更换image
+
+
+cat req-limit.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: limit-pod
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.242
+  containers:
+  - name: main
+    image: centos
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: "20Mi"
+    command: ["dd","if=/dev/zero","of=/dev/null"]
+
+
+
+kubectl  create  -f req-limit.yaml
+
+
+
+kubectl  exec limit-pod  -- nslookup  kubernetes
+OCI runtime exec failed: exec failed: container_linux.go:348: starting container process caused "exec: \"nslookup\": executable file not found in $PATH": unknown
+command terminated with exit code 126
+
+
+
+kubectl  exec limit-pod  -- dig   kubernetes
+OCI runtime exec failed: exec failed: container_linux.go:348: starting container process caused "exec: \"dig\": executable file not found in $PATH": unknown
+command terminated with exit code 126
+
+
+
+
+[root@master01 ~]# kubectl  exec limit-pod  -- ping   kubernetes
+PING kubernetes.default.svc.cluster.local (10.254.0.1) 56(84) bytes of data.
+64 bytes from kubernetes.default.svc.cluster.local (10.254.0.1): icmp_seq=1 ttl=64 time=0.116 ms
+64 bytes from kubernetes.default.svc.cluster.local (10.254.0.1): icmp_seq=2 ttl=64 time=0.168 ms
+64 bytes from kubernetes.default.svc.cluster.local (10.254.0.1): icmp_seq=3 ttl=64 time=0.123 ms
+64 bytes from kubernetes.default.svc.cluster.local (10.254.0.1): icmp_seq=4 ttl=64 time=0.121 ms
+^C
+
+
+
+
+
+kubectl exec -it limit-pod bash
+
+yum -y instal dnsutils
+
+
+再次更换image
+
+kubectl  delete pod limit-pod 
+
+
+
+
+cat req-limit.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: limit-pod
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.242
+  containers:
+  - name: main
+    image: busybox:1.28.4
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: "20Mi"
+    command: ["dd","if=/dev/zero","of=/dev/null"]
+
+
+
+kubectl  exec limit-pod  -- nslookup  kubernetes
+Server:    10.254.0.2
+Address 1: 10.254.0.2 kube-dns.kube-system.svc.cluster.local
+
+Name:      kubernetes
+Address 1: 10.254.0.1 kubernetes.default.svc.cluster.local
+
+
+
+kubectl  get  service 
+NAME                 TYPE           CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+kubernetes           ClusterIP      10.254.0.1       <none>        443/TCP        56d
+kubia-loadbalancer   LoadBalancer   10.254.191.156   <pending>     80:44429/TCP   46h
+kubia-nodeport       NodePort       10.254.50.65     <none>        80:30123/TCP   46h
+nginx                ClusterIP      10.254.246.243   <none>        80/TCP         22h
+[root@master01 ~]# kubectl  exec limit-pod  -- nslookup   kubia-nodeport
+Server:    10.254.0.2
+Address 1: 10.254.0.2 kube-dns.kube-system.svc.cluster.local
+
+Name:      kubia-nodeport
+Address 1: 10.254.50.65 kubia-nodeport.default.svc.cluster.local
+
+
+测试成功 返回  cluster ip
+
+
+
+
+创建headless service
+
+
+cat > kubia-svc-headless.yaml   << EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia-headless
+spec:
+  clusterIP: None
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: kubia
+EOF
+
+
+
+kubectl create -f kubia-svc-headless.yaml
+
+
+
+
+kubectl  exec limit-pod  -- nslookup  kubia-headless
+Server:    10.254.0.2
+Address 1: 10.254.0.2 kube-dns.kube-system.svc.cluster.local
+
+Name:      kubia-headless
+Address 1: 172.30.13.3 172-30-13-3.kubia-headless.default.svc.cluster.local
+Address 2: 172.30.13.6 172-30-13-6.kubia-headless.default.svc.cluster.local
+Address 3: 172.30.13.5 172-30-13-5.kubia-headless.default.svc.cluster.local
+[root@master01 ~]# kubectl   get service kubia-headless 
+NAME             TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+kubia-headless   ClusterIP   None         <none>        80/TCP    27s
+[root@master01 ~]# kubectl   get endpoints  kubia-headless 
+NAME             ENDPOINTS                                            AGE
+kubia-headless   172.30.13.3:8080,172.30.13.5:8080,172.30.13.6:8080   37s
+
+
+kubectl  get pod  -l app=kubia -o wide
+NAME          READY   STATUS    RESTARTS   AGE    IP            NODE             NOMINATED NODE
+kubia-4k298   1/1     Running   0          2d4h   172.30.13.6   192.168.10.243   <none>
+kubia-4lfz6   1/1     Running   0          46h    172.30.13.5   192.168.10.243   <none>
+kubia-hc5l6   1/1     Running   0          2d4h   172.30.13.3   192.168.10.243   <none>
+
+
+
+
+
+
+
+
+kubia-rs.yaml
+apiVersion: apps/v1beta2
+kind: ReplicaSet
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia
+        image: luksa/kubia
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+
+
+kubia-svc-nodeport.yaml
+apiVersion: v1
+kind: Service
+metadata:
+   name: kubia-nodeport
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 8080
+    nodePort: 30123
+  selector:
+    app: kubia
+
+
+
+yaml 文件  --dry-run 效果不好   command  效果好些
+

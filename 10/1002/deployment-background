@@ -1,0 +1,432 @@
+发布更新 有证明周期的项目 需要迭代
+
+如何发布更新  调用我们的发布更新接口  更新业务集群
+
+
+ex1 验证 pod  直接更改镜像 不被允许 只能删除 重新建立pod  的方式来 更改镜像
+
+(pod是否支持直接修改镜像呢？ 答案是不可以的。只能通过删除原pod， 并使用新的镜像创建新的pod才可以实现)
+
+
+创建pod 
+
+cat > req-limit.yaml  << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: limit-pod
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: 192.168.10.242
+  containers:
+  - name: main
+    image: busybox:1.28.4
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: "20Mi"
+    command: ["dd","if=/dev/zero","of=/dev/null"]
+EOF
+
+
+
+kubectl  create  -f  req-limit.yaml
+
+
+
+改为使用latest 相当于更换镜像  更换版本
+
+
+kubectl  edit  pod limit-pod
+
+image: busybox
+
+
+
+kubectl  describe  pod  limit-pod   | grep Image
+    Image:         busybox
+    Image ID:      docker-pullable://busybox@sha256:954e1f01e80ce09d0887ff6ea10b13a812cb01932a0781d6b0cc23f743a874fd
+
+
+
+
+kubectl  edit  pod limit-pod
+
+/ # busybox
+BusyBox v1.30.1 (2019-04-02 04:31:11 UTC) multi-call binary.
+
+
+
+
+
+ex2   rc  发布更新的方式
+
+
+蓝绿部署   blue 老的   green 新的
+
+清理环境
+
+kubectl  delete deployments. --all
+
+
+kubectl  get svc,rs,rc
+NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+service/kubernetes   ClusterIP   10.254.0.1   <none>        443/TCP   57d
+
+kubectl  delete  svc kugos
+
+kubectl  delete  pod --all
+
+
+
+kubectl  get node
+NAME             STATUS   ROLES    AGE   VERSION
+192.168.10.242   Ready    <none>   57d   v1.12.0-rc.2
+192.168.10.243   Ready    <none>   57d   v1.12.0-rc.2
+[root@master01 ~]# kubectl   cordon  192.168.10.243
+node/192.168.10.243 cordoned
+[root@master01 ~]# kubectl  get node
+NAME             STATUS                     ROLES    AGE   VERSION
+192.168.10.242   Ready                      <none>   57d   v1.12.0-rc.2
+192.168.10.243   Ready,SchedulingDisabled   <none>   57d   v1.12.0-rc.2
+
+
+
+
+
+
+cat >  rc-v1.yaml << EOF
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: kubia-v1
+spec:
+  replicas: 3
+  template:
+    metadata:
+      name: kubia
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - image: luksa/kubia:v1
+        imagePullPolicy: IfNotPresent
+        name: nodejs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia
+spec:
+  type: NodePort
+  selector:
+    app: kubia
+  ports:
+  - port: 80
+    targetPort: 8080
+EOF
+
+
+
+一个文件创建多个  object 使用 ---  三个dash
+
+kubectl  create -f rc-v1.yaml
+
+
+kubectl  get pod -o wide --show-labels 
+NAME             READY   STATUS    RESTARTS   AGE     IP           NODE             NOMINATED NODE   LABELS
+kubia-v1-ht66w   1/1     Running   0          2m39s   172.30.6.6   192.168.10.242   <none>           app=kubia
+kubia-v1-hzbdb   1/1     Running   0          2m39s   172.30.6.3   192.168.10.242   <none>           app=kubia
+kubia-v1-zswls   1/1     Running   0          2m39s   172.30.6.9   192.168.10.242   <none>           app=kubia
+
+
+kubectl  get rc kubia-v1  --show-labels 
+NAME       DESIRED   CURRENT   READY   AGE     LABELS
+kubia-v1   3         3         3       3m27s   app=kubia
+
+
+kubectl  get svc kubia -o wide
+NAME    TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE    SELECTOR
+kubia   NodePort   10.254.252.106   <none>        80:42414/TCP   4m6s   app=kubia
+
+[root@master01 ~]# ssh root@node01 'curl 10.254.252.106 '
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0This is v1 running in pod kubia-v1-zswls
+100    41    0    41    0     0   1534      0 --:--:-- --:--:-- --:--:--  1640
+[root@master01 ~]# ssh root@node01 'curl 10.254.252.106'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100    41    0    41    0     0   2354      0 --:--:-- --:--:-- --:--:--  2562This is v1 running in pod kubia-v1-hzbdb
+
+[root@master01 ~]# ssh root@node01 'curl 10.254.252.106'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0This is v1 running in pod kubia-v1-ht66w
+100    41    0    41    0     0   2187      0 --:--:-- --:--:-- --:--:--  2562
+
+
+
+
+
+
+
+
+创建v2 版本的  rc
+
+
+cat  > rc-v2.yaml << EOF
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: kubia-v2
+spec:
+  replicas: 3
+  template:
+    metadata:
+      name: kubia
+      labels:
+        app: kubia-v2
+    spec:
+      containers:
+      - image: luksa/kubia:v2
+        imagePullPolicy: IfNotPresent
+        name: nodejs
+EOF
+
+
+kubectl  create  -f rc-v2.yaml
+
+kubectl  get pod  -l  app=kubia-v2
+NAME             READY   STATUS    RESTARTS   AGE
+kubia-v2-2hl4q   1/1     Running   0          2m4s
+kubia-v2-6qrmq   1/1     Running   0          2m4s
+kubia-v2-chlk7   1/1     Running   0          2m4s
+
+
+
+
+
+查看 svc 的标签选择器
+
+kubectl  get svc kubia -owide
+NAME    TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE     SELECTOR
+kubia   NodePort   10.254.252.106   <none>        80:42414/TCP   8m24s   app=kubia
+
+
+
+
+
+
+node01 上   不停的访问  service kubia
+
+
+[root@node02 ~]#  while true;do curl 10.254.252.106:80;done;
+This is v1 running in pod kubia-v1-zswls
+This is v1 running in pod kubia-v1-hzbdb
+This is v1 running in pod kubia-v1-ht66w
+This is v1 running in pod kubia-v1-zswls
+This is v1 running in pod kubia-v1-hzbdb
+This is v1 running in pod kubia-v1-ht66w
+This is v1 running in pod kubia-v1-zswls
+This is v1 running in pod kubia-v1-hzbdb
+This is v1 running in pod kubia-v1-ht66w
+This is v1 running in pod kubia-v1-zswls
+This is v1 running in pod kubia-v1-hzbdb
+This is v1 running in pod kubia-v1-ht66w
+This is v1 running in pod kubia-v1-zswls
+This is v1 running in pod kubia-v1-hzbdb
+This is v1 running in pod kubia-v1-ht66w
+This is v1 running in pod kubia-v1-zswls
+This is v1 running in pod kubia-v1-hzbdb
+This is v1 running in pod kubia-v1-ht66w
+This is v1 running in pod kubia-v1-zswls
+
+
+返回都是 v1 的版本
+
+
+
+
+
+
+通过修改service的label selector切流:
+
+
+kubectl  get svc kubia -owide
+NAME    TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE     SELECTOR
+kubia   NodePort   10.254.252.106   <none>        80:42414/TCP   8m24s   app=kubia
+
+
+kubectl  set selector  svc kubia 'app=kubia-v2'
+
+kubectl  get svc kubia -owide
+NAME    TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE     SELECTOR
+kubia   NodePort   10.254.252.106   <none>        80:42414/TCP   8m24s   app=kubia-v2
+
+
+[root@node02 ~]#  while true;do curl 10.254.252.106:80;done;
+This is v2 running in pod kubia-v2-chlk7
+This is v2 running in pod kubia-v2-6qrmq
+This is v2 running in pod kubia-v2-2hl4q
+This is v2 running in pod kubia-v2-chlk7
+This is v2 running in pod kubia-v2-6qrmq
+This is v2 running in pod kubia-v2-2hl4q
+This is v2 running in pod kubia-v2-chlk7
+This is v2 running in pod kubia-v2-6qrmq
+This is v2 running in pod kubia-v2-2hl4q
+This is v2 running in pod kubia-v2-chlk7
+This is v2 running in pod kubia-v2-6qrmq
+This is v2 running in pod kubia-v2-2hl4q
+This is v2 running in pod kubia-v2-chlk7
+
+
+
+
+endpoint 也变了 
+
+kubectl  get endpoints kubia 
+NAME    ENDPOINTS                                            AGE
+kubia   172.30.6.10:8080,172.30.6.11:8080,172.30.6.12:8080   16m
+[root@master01 ~]# kubectl  get pod -l app=kubia-v2
+NAME             READY   STATUS    RESTARTS   AGE
+kubia-v2-2hl4q   1/1     Running   0          10m
+kubia-v2-6qrmq   1/1     Running   0          10m
+kubia-v2-chlk7   1/1     Running   0          10m
+
+
+切换成功后删除旧的 rc
+
+kubectl  delete rc kubia-v1
+
+
+
+ex3  滚动升级
+
+
+kubectl  delete rc kubia-v2
+
+
+滚动升级不需要建立全新的 v2 版的rc
+直接修改  v1 rc 中 template 的image  
+
+
+[root@node02 ~]#  while true;do curl 10.254.252.106:80;done;
+
+
+kubectl  delete svc kubia
+
+
+cat >  rc-v1.yaml << EOF
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: kubia-v1
+spec:
+  replicas: 3
+  template:
+    metadata:
+      name: kubia
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - image: luksa/kubia:v1
+        imagePullPolicy: IfNotPresent
+        name: nodejs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia
+spec:
+  type: NodePort
+  selector:
+    app: kubia
+  ports:
+  - port: 80
+    targetPort: 8080
+EOF
+
+
+
+
+kubectl  create -f rc-v1.yaml
+
+
+
+[root@master01 ~]# kubectl  get  svc kubia -owide
+NAME    TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE   SELECTOR
+kubia   NodePort   10.254.168.213   <none>        80:53943/TCP   47s   app=kubia
+[root@master01 ~]# kubectl  get pod -l app=kubia
+NAME             READY   STATUS    RESTARTS   AGE
+kubia-v1-274p2   1/1     Running   0          49s
+kubia-v1-h9b7d   1/1     Running   0          49s
+kubia-v1-nb6n4   1/1     Running   0          49s
+
+
+
+while true;do curl 10.254.168.213;done;
+
+[root@node02 ~]# while true;do curl 10.254.168.213;done;
+This is v1 running in pod kubia-v1-nb6n4
+This is v1 running in pod kubia-v1-h9b7d
+This is v1 running in pod kubia-v1-274p2
+This is v1 running in pod kubia-v1-nb6n4
+This is v1 running in pod kubia-v1-h9b7d
+This is v1 running in pod kubia-v1-274p2
+This is v1 running in pod kubia-v1-nb6n4
+This is v1 running in pod kubia-v1-h9b7d
+This is v1 running in pod kubia-v1-274p2
+This is v1 running in pod kubia-v1-nb6n4
+
+
+
+
+v1  版本 服务  runing 状态  执行滚动升级
+
+
+
+[root@master01 ~]# kubectl  get  svc kubia -owide
+NAME    TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE     SELECTOR
+kubia   NodePort   10.254.168.213   <none>        80:53943/TCP   5m12s   app=kubia
+
+[root@master01 ~]# kubectl  get rc --show-labels 
+NAME       DESIRED   CURRENT   READY   AGE     LABELS
+kubia-v1   3         3         3       5m14s   app=kubia
+
+
+kubectl  get endpoints  kubia 
+NAME    ENDPOINTS                                         AGE
+kubia   172.30.6.3:8080,172.30.6.6:8080,172.30.6.9:8080   7m35s
+
+
+
+
+
+滚动v1   滚动到v2    指定image 版本
+
+
+
+kubectl rolling-update kubia-v1 kubia-v2 --image=luksa/kubia:v2 --v 6
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

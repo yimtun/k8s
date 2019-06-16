@@ -1,0 +1,25 @@
+cat /etc/hosts
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+192.168.10.242 node01
+192.168.10.243 node02
+192.168.10.232 master01
+#192.168.10.243 nginx.testdomain.com
+#192.168.10.243 kubia.example.com
+#192.168.10.243 test.xxx.com
+
+
+kubectl  get ingresses.extensions 
+NAME   HOSTS                                    ADDRESS   PORTS     AGE
+mix2   kubia.example.com,nginx.testdomain.com             80, 443   21h
+
+
+
+curl  -k  -H "HOST:kubia.example.com"  https://192.168.10.243
+
+curl  -k  -H "HOST:kubia.example.com"  https://192.168.10.243
+You've hit kubia-4k298
+
+
+
+

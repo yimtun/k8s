@@ -1,0 +1,644 @@
+Deployment 滚动升级频率控制
+Deployment 滚动升级过程中， 有两个值可以配置每次替换多少个pod：
+
+strategy:
+  rollingUpdate:
+    maxSurge: 25%
+    maxUnavailable: 25%
+  type: RollingUpdate
+
+
+
+maxUnavailable:0 生产
+必须都可用
+
+
+
+暂停滚动升级
+假如，我们修复v3版本的bug，现在已经变成v4版本， 但是出于安全考虑，我们只希望先运行一个新版的pod，
+并查看一小部分用户请求的处理情况。如果一旦符合预期，就可以用新的pod，替换所有旧的pod。
+这相当于运行了一个金丝雀版本。金丝雀发布是一种可以将应用程序的出错版本和影响用户的风险化为最小的技术。
+
+
+
+kubectl  set image deployment kubia nodejs=luksa/kubia:v4 --record
+kubectl  rollout pause deployment  kubia
+
+恢复回滚升级
+
+
+kubectl  rollout resume deployment  kubia
+
+
+
+
+强制暂停  分组里的第一组只有一个实例 把问题压缩到最小范围
+
+
+
+
+
+kubectl  get rs -l app=kubia
+NAME               DESIRED   CURRENT   READY   AGE
+kubia-5bd5dd8bf9   3         3         3       124m
+kubia-7d9f9cc8d    0         0         0       48m
+kubia-f74d74ff7    0         0         0       39m
+
+
+
+
+kubectl  get rs -l app=kubia
+NAME               DESIRED   CURRENT   READY   AGE
+kubia-5bd5dd8bf9   3         3         3       124m
+kubia-7d9f9cc8d    0         0         0       48m
+kubia-f74d74ff7    0         0         0       39m
+[root@master01 ~]# kubectl  rollout  history  deployment  kubia
+deployment.extensions/kubia 
+REVISION  CHANGE-CAUSE
+3         kubectl set image deployment kubia nodejs=luksa/kubia:v3 --record=true
+4         kubectl set image deployment kubia nodejs=luksa/kubia:v2 --record=true
+5         kubectl create --filename=dp.yaml --record=true
+
+
+
+
+先改变当期版本为 v2
+
+
+kubectl  set image deployment kubia nodejs=luksa/kubia:v2 --record
+deployment.extensions/kubia image updated
+[root@master01 ~]# kubectl  rollout  history  deployment  kubia
+deployment.extensions/kubia 
+REVISION  CHANGE-CAUSE
+3         kubectl set image deployment kubia nodejs=luksa/kubia:v3 --record=true
+5         kubectl create --filename=dp.yaml --record=true
+6         kubectl set image deployment kubia nodejs=luksa/kubia:v2 --record=true
+
+
+
+
+kubectl  get rs -l app=kubia
+NAME               DESIRED   CURRENT   READY   AGE
+kubia-5bd5dd8bf9   0         0         0       128m
+kubia-7d9f9cc8d    3         3         3       51m
+kubia-f74d74ff7    0         0         0       42m
+
+
+
+
+开始 升级到   v4
+
+kubectl  set image deployment kubia nodejs=luksa/kubia:v4 --record
+
+
+kubectl  get rs -l app=kubia
+NAME               DESIRED   CURRENT   READY   AGE
+kubia-5bd5dd8bf9   0         0         0       129m
+kubia-6766cf587d   3         3         2       25s
+kubia-7d9f9cc8d    1         1         1       52m
+kubia-f74d74ff7    0         0         0       44m
+
+
+暂停升级   界面可以强制暂停
+
+
+kubectl  rollout pause deployment  kubia
+deployment.extensions/kubia paused
+
+
+kubectl  get rs -l app=kubia
+NAME               DESIRED   CURRENT   READY   AGE
+kubia-5bd5dd8bf9   0         0         0       133m
+kubia-6766cf587d   1         1         1       4m57s
+kubia-7d9f9cc8d    3         3         3       57m
+kubia-f74d74ff7    0         0         0       48m
+
+
+[root@node02 ~]# while true;do curl 10.254.195.14;done;
+This is v4 running in pod kubia-6766cf587d-fkjd9
+This is v2 running in pod kubia-7d9f9cc8d-r88qf
+This is v2 running in pod kubia-7d9f9cc8d-hq2ss
+This is v2 running in pod kubia-7d9f9cc8d-hwr46
+This is v4 running in pod kubia-6766cf587d-fkjd9
+This is v2 running in pod kubia-7d9f9cc8d-r88qf
+
+
+
+上线新街口  测试新接口 没法打到一个pod 上面    不是 headless  看灰度容器的日志  发请求 如果是headless svc 的话可以直接测试了
+
+
+
+
+
+继续  升级
+
+kubectl  rollout resume deployment  kubia
+
+
+kubectl  get rs -l app=kubia
+NAME               DESIRED   CURRENT   READY   AGE
+kubia-5bd5dd8bf9   0         0         0       135m
+kubia-6766cf587d   3         3         3       6m13s
+kubia-7d9f9cc8d    0         0         0       58m
+kubia-f74d74ff7    0         0         0       49m
+
+
+
+
+[root@master01 ~]# kubectl  get pod -l app=kubia
+NAME                     READY   STATUS    RESTARTS   AGE
+kubia-6766cf587d-fkjd9   1/1     Running   0          4m12s
+kubia-6766cf587d-rjtbp   1/1     Running   0          3m15s
+kubia-6766cf587d-xj5ls   1/1     Running   0          3m3s
+[root@master01 ~]# kubectl  logs kubia-6766cf587d-rjtbp 
+Kubia server starting...
+Received request from ::ffff:172.30.13.0
+Received request from ::ffff:172.30.13.0
+Received request from ::ffff:172.30.13.0
+Received request from ::ffff:172.30.13.0
+Received request from ::ffff:172.30.13.0
+Received request from ::ffff:172.30.13.0
+Received request from ::ffff:172.30.13.0
+Received request from ::ffff:172.30.13.0
+Received request from ::ffff:172.30.13.0
+Received request from ::ffff:172.30.13.0
+
+
+
+
+
+
+
+
+阻止出错版本的滚动升级  (用户没有强制暂停的情况下)
+
+minReadySeconds的用处
+
+指新建的pod至少运行多久之后，才能将其视为可用。
+在pod可用之前，滚动升级过程不会继续，如果一个pod出错了，就绪探针返回失败，
+并且在 minReadySeconds 的时间内就绪探针出现了失败，
+那么本次新版本升级将被阻止。使用就绪探针和minReadySeconds ，可以阻止我们发布v3 bug版本。
+
+
+cat > v3-with-readinesscheck.yaml << EOF
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  minReadySeconds: 10
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      name: kubia
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - image: luksa/kubia:v3
+        imagePullPolicy: IfNotPresent
+        name: nodejs
+        readinessProbe:
+          periodSeconds: 1
+          httpGet:
+            path: /
+            port: 8080
+EOF
+
+
+
+  minReadySeconds: 10   10秒
+strategy:
+    rollingUpdate:
+      maxSurge: 1         每次只能加一个 
+      maxUnavailable: 0   不允许有错的 有错的就停
+    type: RollingUpdate
+
+
+
+http 探针
+readinessProbe:
+          periodSeconds: 1
+          httpGet:
+            path: /
+            port: 8080
+
+
+
+查看现有rs
+
+kubectl  get rs -l app=kubia
+NAME               DESIRED   CURRENT   READY   AGE
+kubia-5bd5dd8bf9   0         0         0       147m
+kubia-6766cf587d   3         3         3       19m
+kubia-7d9f9cc8d    0         0         0       71m
+kubia-f74d74ff7    0         0         0       62m
+
+
+
+
+kubectl  apply -f  v3-with-readinesscheck.yaml  --record 
+
+[root@master01 ~]# kubectl  apply -f  v3-with-readinesscheck.yaml  --record
+Warning: kubectl apply should be used on resource created by either kubectl create --save-config or kubectl apply
+deployment.apps/kubia configured
+[root@master01 ~]# kubectl  get rs -l app=kubia
+NAME               DESIRED   CURRENT   READY   AGE
+kubia-5bd5dd8bf9   0         0         0       148m
+kubia-6766cf587d   3         3         3       19m
+kubia-7d9f9cc8d    0         0         0       71m
+kubia-7f8fb5b679   1         1         1       3s
+kubia-f74d74ff7    0         0         0       63m
+
+
+
+
+
+
+
+kubia-7f8fb5b679 是v3  更新的
+
+kubectl  get rs  kubia-7f8fb5b679 -o yaml | grep  image
+      - image: luksa/kubia:v3
+        imagePullPolicy: IfNotPresent
+
+
+
+kubectl  get pod  -l app=kubia
+NAME                     READY   STATUS    RESTARTS   AGE
+kubia-6766cf587d-fkjd9   1/1     Running   0          15m
+kubia-6766cf587d-rjtbp   1/1     Running   0          14m
+kubia-6766cf587d-xj5ls   1/1     Running   0          14m
+kubia-7f8fb5b679-8gtnx   0/1     Running   0          79s
+
+
+
+
+kubectl  get rs -l app=kubia
+NAME               DESIRED   CURRENT   READY   AGE
+kubia-5bd5dd8bf9   0         0         0       149m
+kubia-6766cf587d   3         3         3       21m
+kubia-7d9f9cc8d    0         0         0       73m
+kubia-7f8fb5b679   1         1         0       106s
+kubia-f74d74ff7    0         0         0       64m
+
+
+
+kubectl  get pod  -l app=kubia
+NAME                     READY   STATUS    RESTARTS   AGE
+kubia-6766cf587d-fkjd9   1/1     Running   0          16m
+kubia-6766cf587d-rjtbp   1/1     Running   0          16m
+kubia-6766cf587d-xj5ls   1/1     Running   0          15m
+kubia-7f8fb5b679-8gtnx   0/1     Running   0          2m31s
+
+
+
+
+
+kubectl  get rs  kubia-7f8fb5b679 -o yaml 
+
+spec:
+      containers:
+      - image: luksa/kubia:v3
+        imagePullPolicy: IfNotPresent
+        name: nodejs
+        readinessProbe:
+          failureThreshold: 3      失败三次就算失败
+          httpGet:
+            path: /
+            port: 8080
+            scheme: HTTP
+          periodSeconds: 1      周期 1秒 
+          successThreshold: 1
+          timeoutSeconds: 1     超时时间1秒
+        resources: {}
+
+
+
+kubectl  rollout  history  deployment  kubia
+deployment.extensions/kubia 
+REVISION  CHANGE-CAUSE
+3         kubectl set image deployment kubia nodejs=luksa/kubia:v3 --record=true
+5         kubectl create --filename=dp.yaml --record=true
+8         kubectl set image deployment kubia nodejs=luksa/kubia:v2 --record=true
+9         kubectl set image deployment kubia nodejs=luksa/kubia:v4 --record=true
+10        kubectl apply --filename=v3-with-readinesscheck.yaml --record=true
+
+
+
+root@master01 ~]# kubectl  rollout  status deployment  kubia
+Waiting for deployment "kubia" rollout to finish: 1 out of 3 new replicas have been updated...
+
+
+
+
+
+v3 的pod  没有被加入到  svc  也没有继续往下走 成功组织了又问题 版本的上线
+
+探针很多地方都有 很难做到统一   小公司  完全依赖 k8s，   大公司 有自己的接入层  探针不对 或者时间不一致 
+
+
+
+
+lvs 不能频繁  reload 
+
+
+
+
+kubectl  rollout  status deployment  kubia
+Waiting for deployment "kubia" rollout to finish: 1 out of 3 new replicas have been updated...
+^C[root@master01 ~]# kubectl  rollout  history  deployment  kubia
+deployment.extensions/kubia 
+REVISION  CHANGE-CAUSE
+3         kubectl set image deployment kubia nodejs=luksa/kubia:v3 --record=true
+5         kubectl create --filename=dp.yaml --record=true
+8         kubectl set image deployment kubia nodejs=luksa/kubia:v2 --record=true
+9         kubectl set image deployment kubia nodejs=luksa/kubia:v4 --record=true
+10        kubectl apply --filename=v3-with-readinesscheck.yaml --record=true
+
+[root@master01 ~]# kubectl  rollout  status deployment  kubia
+error: deployment "kubia" exceeded its progress deadline
+[root@master01 ~]# 
+
+
+
+
+kubectl  get pod  -l app=kubia
+NAME                     READY   STATUS    RESTARTS   AGE
+kubia-6766cf587d-fkjd9   1/1     Running   0          25m
+kubia-6766cf587d-rjtbp   1/1     Running   0          24m
+kubia-6766cf587d-xj5ls   1/1     Running   0          24m
+kubia-7f8fb5b679-8gtnx   0/1     Running   0          10m
+
+
+
+
+
+
+为滚动升级配置deadline
+默认情况下， 在10分钟内不能完成升级的话， 则被视为失败，可以通过设置 spec中的progressDeadlineSeconds 来指定deadline时间。
+
+
+kubectl  get deployments. kubia  -o yaml | grep progressDeadlineSeconds
+  progressDeadlineSeconds: 600
+
+
+
+
+取消出错版本升级
+
+手动：
+
+kubectl  rollout undo deployment  kubia
+自动：
+达到了 progressDeadlineSeconds: 600 指定的600s，则滚动升级会自动取消。
+
+
+
+不允许  unalilable pod 的存在
+
+
+
+kubectl  get deployments. kubia  -o yaml | grep image
+      {"apiVersion":"apps/v1beta1","kind":"Deployment","metadata":{"annotations":{"kubernetes.io/change-cause":"kubectl apply --filename=v3-with-readinesscheck.yaml --record=true"},"name":"kubia","namespace":"default"},"spec":{"minReadySeconds":10,"replicas":3,"strategy":{"rollingUpdate":{"maxSurge":1,"maxUnavailable":0},"type":"RollingUpdate"},"template":{"metadata":{"labels":{"app":"kubia"},"name":"kubia"},"spec":{"containers":[{"image":"luksa/kubia:v3","imagePullPolicy":"IfNotPresent","name":"nodejs","readinessProbe":{"httpGet":{"path":"/","port":8080},"periodSeconds":1}}]}}}}
+      - image: luksa/kubia:v3
+        imagePullPolicy: IfNotPresent
+
+
+image是  v3
+
+实际运行的是 v4
+
+
+
+[root@node02 ~]# while true;do curl 10.254.195.14;done;
+This is v4 running in pod kubia-6766cf587d-xj5ls
+This is v4 running in pod kubia-6766cf587d-rjtbp
+This is v4 running in pod kubia-6766cf587d-fkjd9
+This is v4 running in pod kubia-6766cf587d-xj5ls
+This is v4 running in pod kubia-6766cf587d-rjtbp
+This is v4 running in pod kubia-6766cf587d-fkjd9
+This is v4 running in pod kubia-6766cf587d-xj5ls
+This is v4 running in pod kubia-6766cf587d-rjtbp
+This is v4 running in pod kubia-6766cf587d-fkjd9
+
+
+
+
+即使超过 时间  progressDeadlineSeconds 新创建的pod 也会存在 需要撤销回滚
+
+image 也还是v3
+这个时候删除之前的 pod 可能会有问题
+
+kubectl  get deployments. kubia  -o yaml | grep image
+      {"apiVersion":"apps/v1beta1","kind":"Deployment","metadata":{"annotations":{"kubernetes.io/change-cause":"kubectl apply --filename=v3-with-readinesscheck.yaml --record=true"},"name":"kubia","namespace":"default"},"spec":{"minReadySeconds":10,"replicas":3,"strategy":{"rollingUpdate":{"maxSurge":1,"maxUnavailable":0},"type":"RollingUpdate"},"template":{"metadata":{"labels":{"app":"kubia"},"name":"kubia"},"spec":{"containers":[{"image":"luksa/kubia:v3","imagePullPolicy":"IfNotPresent","name":"nodejs","readinessProbe":{"httpGet":{"path":"/","port":8080},"periodSeconds":1}}]}}}}
+      - image: luksa/kubia:v3
+        imagePullPolicy: IfNotPresent
+
+
+
+
+
+[root@master01 ~]# kubectl  get deployments. kubia  -o yaml | grep progressDeadlineSeconds
+  progressDeadlineSeconds: 600
+[root@master01 ~]# kubectl  rollout  status deployment  kubia
+error: deployment "kubia" exceeded its progress deadline
+[root@master01 ~]# kubectl   get po -l app=kubia
+NAME                     READY   STATUS    RESTARTS   AGE
+kubia-6766cf587d-fkjd9   1/1     Running   0          31m
+kubia-6766cf587d-rjtbp   1/1     Running   0          30m
+kubia-6766cf587d-xj5ls   1/1     Running   0          30m
+kubia-7f8fb5b679-8gtnx   0/1     Running   0          16m
+
+
+kubectl  delete pod kubia-6766cf587d-xj5ls
+pod "kubia-6766cf587d-xj5ls" deleted
+
+
+[root@master01 ~]# kubectl  get po -l app=kubia -o wide
+NAME                     READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE
+kubia-6766cf587d-fkjd9   1/1     Running   0          34m   172.30.6.11   192.168.10.242   <none>
+kubia-6766cf587d-g9bnc   1/1     Running   0          53s   172.30.6.6    192.168.10.242   <none>
+kubia-6766cf587d-rjtbp   1/1     Running   0          33m   172.30.6.10   192.168.10.242   <none>
+kubia-7f8fb5b679-8gtnx   0/1     Running   0          19m   172.30.6.3    192.168.10.242   <none>
+
+
+新创建的是 v4 版本正确
+curl  172.30.6.6:8080
+This is v4 running in pod kubia-6766cf587d-g9bnc
+
+
+
+
+删除因为升级失败 二 存留的 pod  
+
+
+kubectl  rollout undo deployment  kubia
+
+kubectl  get deployments. kubia  -o yaml | grep image
+      {"apiVersion":"apps/v1beta1","kind":"Deployment","metadata":{"annotations":{"kubernetes.io/change-cause":"kubectl apply --filename=v3-with-readinesscheck.yaml --record=true"},"name":"kubia","namespace":"default"},"spec":{"minReadySeconds":10,"replicas":3,"strategy":{"rollingUpdate":{"maxSurge":1,"maxUnavailable":0},"type":"RollingUpdate"},"template":{"metadata":{"labels":{"app":"kubia"},"name":"kubia"},"spec":{"containers":[{"image":"luksa/kubia:v3","imagePullPolicy":"IfNotPresent","name":"nodejs","readinessProbe":{"httpGet":{"path":"/","port":8080},"periodSeconds":1}}]}}}}
+    kubernetes.io/change-cause: kubectl set image deployment kubia nodejs=luksa/kubia:v4
+      - image: luksa/kubia:v4
+        imagePullPolicy: IfNotPresent
+
+
+
+kubectl  rollout status  deployment  kubia
+deployment "kubia" successfully rolled out
+
+
+
+
+kubectl   get po -l app=kubia
+NAME                     READY   STATUS        RESTARTS   AGE
+kubia-6766cf587d-fkjd9   1/1     Running       0          38m
+kubia-6766cf587d-g9bnc   1/1     Running       0          4m52s
+kubia-6766cf587d-rjtbp   1/1     Running       0          37m
+kubia-7f8fb5b679-8gtnx   0/1     Terminating   0          23m
+
+
+
+
+kubectl  delete deployments  kubia
+kubectl  delete svc kubia
+
+
+
+
+
+
+recreate 策略 验证
+
+kubectl  get pod -l app=kubia
+No resources found.
+
+
+kubectl  get svc kubia
+No resources found.
+
+cat > v3-with-readinesscheck.yaml   << EOF
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  minReadySeconds: 10
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      name: kubia
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - image: luksa/kubia:v1
+        imagePullPolicy: IfNotPresent
+        name: nodejs
+        readinessProbe:
+          periodSeconds: 1
+          httpGet:
+            path: /
+            port: 8080
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia
+spec:
+  type: NodePort
+  selector:
+    app: kubia
+  ports:
+  - port: 80
+    targetPort: 8080
+EOF
+
+
+kubectl  create  -f v3-with-readinesscheck.yaml --record 
+deployment.apps/kubia created
+service/kubia created
+
+
+
+kubectl  get svc kubia
+NAME    TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+kubia   NodePort   10.254.132.46   <none>        80:31348/TCP   2m36s
+
+
+kubectl  get po -l app=kubia
+NAME                     READY   STATUS    RESTARTS   AGE
+kubia-7955d544f7-7998h   1/1     Running   0          3m15s
+kubia-7955d544f7-7h4nj   1/1     Running   0          3m15s
+kubia-7955d544f7-f2x2z   1/1     Running   0          3m15s
+
+
+
+[root@node02 ~]# while true;do curl 10.254.132.46;done;
+
+
+This is v1 running in pod kubia-7955d544f7-f2x2z
+This is v1 running in pod kubia-7955d544f7-7998h
+This is v1 running in pod kubia-7955d544f7-7h4nj
+This is v1 running in pod kubia-7955d544f7-f2x2z
+This is v1 running in pod kubia-7955d544f7-7998h
+This is v1 running in pod kubia-7955d544f7-7h4nj
+This is v1 running in pod kubia-7955d544f7-f2x2z
+
+
+
+
+
+kubectl set image  deployment kubia   nodejs=luksa/kubia:v2  --record 
+
+kubectl  get po -l app=kubia
+NAME                     READY   STATUS        RESTARTS   AGE
+kubia-7955d544f7-7998h   1/1     Terminating   0          6m35s
+kubia-7955d544f7-7h4nj   1/1     Terminating   0          6m35s
+kubia-7955d544f7-f2x2z   1/1     Terminating   0          6m35s
+
+
+
+[root@node02 ~]# while true;do curl 10.254.132.46;done;
+curl: (7) Failed connect to 10.254.132.46:80; Connection refused
+curl: (7) Failed connect to 10.254.132.46:80; Connection refused
+curl: (7) Failed connect to 10.254.132.46:80; Connection refused
+curl: (7) Failed connect to 10.254.132.46:80; Connection refused
+curl: (7) Failed connect to 10.254.132.46:80; Connection refused
+
+
+
+
+kubectl  get po -l app=kubia
+NAME                     READY   STATUS    RESTARTS   AGE
+kubia-5d9bc949f6-k6xt6   1/1     Running   0          13s
+kubia-5d9bc949f6-nxx2b   1/1     Running   0          13s
+kubia-5d9bc949f6-zrj5w   1/1     Running   0          13s
+
+
+[root@node02 ~]# while true;do curl 10.254.132.46;done;
+This is v2 running in pod kubia-5d9bc949f6-k6xt6
+This is v2 running in pod kubia-5d9bc949f6-zrj5w
+This is v2 running in pod kubia-5d9bc949f6-nxx2b
+This is v2 running in pod kubia-5d9bc949f6-k6xt6
+This is v2 running in pod kubia-5d9bc949f6-zrj5w
+This is v2 running in pod kubia-5d9bc949f6-nxx2b
+This is v2 running in pod kubia-5d9bc949f6-k6xt6
+This is v2 running in pod kubia-5d9bc949f6-zrj5w
+This is v2 running in pod kubia-5d9bc949f6-nxx2b
+
+
+
+
+kubectl  rollout  status deployment  kubia
+deployment "kubia" successfully rolled out
+
+
+recreate 策略 适合  Job ???
